@@ -23,11 +23,15 @@ defaults
 	timeout server 5s
 	timeout client 5s
 
+{{ .CustomConfig }}
+
 frontend test
     mode http
     bind 127.0.0.1:{{ .FrontendPort }}
 
+{{- if .EngineConfig }}
     filter spoe engine e2e config {{ .EngineConfig }}
+{{ end -}}
 
     {{ .CustomFrontendConfig }}
 
@@ -40,9 +44,18 @@ backend backend
 
     {{ .BackendConfig }}
 
+{{ if .EngineAddr -}}
 backend e2e-spoa
     mode tcp
     server e2e {{ .EngineAddr }}
+{{ end }}
+
+{{ if .PeerAddr -}}
+peers mypeers
+	peer {{ .InstanceID }} {{ .LocalPeerAddr }}
+	peer go_client {{ .PeerAddr }}
+{{ end }}
+
 `
 
 const haproxyEngineConfig = `
@@ -68,11 +81,13 @@ spoe-message e2e-res
 
 type HAProxyConfig struct {
 	EngineAddr           string
+	PeerAddr             string
 	EngineConfig         string
 	FrontendPort         string
 	CustomFrontendConfig string
 	BackendConfig        string
 	CustomBackendConfig  string
+	CustomConfig         string
 }
 
 func mustExecuteTemplate(t *testing.T, text string, data any) string {
@@ -104,15 +119,22 @@ http-request return status 200 content-type "text/plain" string "Hello World!\n"
 		type tmplCfg struct {
 			HAProxyConfig
 
-			StatsSocket string
+
+			StatsSocket   string
+			InstanceID    string
+			LocalPeerAddr string
 		}
 		var tcfg tmplCfg
 		tcfg.HAProxyConfig = cfg
+		tcfg.InstanceID = fmt.Sprintf("instance_%s", cfg.FrontendPort)
+		tcfg.LocalPeerAddr = fmt.Sprintf("127.0.0.1:%d", TCPPort(t))
 		tcfg.StatsSocket = fmt.Sprintf("%s/stats%s.sock", os.TempDir(), tcfg.FrontendPort)
 
-		engineConfigFile := TempFile(t, "e2e.cfg", cfg.EngineConfig)
-		tcfg.EngineConfig = engineConfigFile
-		defer os.Remove(engineConfigFile)
+		if cfg.EngineAddr != "" {
+			engineConfigFile := TempFile(t, "e2e.cfg", cfg.EngineConfig)
+			tcfg.EngineConfig = engineConfigFile
+			defer os.Remove(engineConfigFile)
+		}
 
 		haproxyConfig := mustExecuteTemplate(t, haproxyConfigTemplate, tcfg)
 		haproxyConfigFile := TempFile(t, "haproxy.cfg", haproxyConfig)
@@ -124,7 +146,7 @@ http-request return status 200 content-type "text/plain" string "Hello World!\n"
 			}
 		}()
 
-		WithProcess("haproxy", []string{"-f", haproxyConfigFile}, func(t *testing.T) {
+		WithProcess("haproxy", []string{"-f", haproxyConfigFile, "-L", tcfg.InstanceID}, func(t *testing.T) {
 			waitOrTimeout(t, time.Second*3, func() {
 				for {
 					l, err := net.Dial("unix", tcfg.StatsSocket)
