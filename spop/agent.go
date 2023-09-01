@@ -4,8 +4,7 @@ import (
 	"bufio"
 	"encoding/binary"
 	"fmt"
-	"github.com/fionera/haproxy-go/pkg/newenc"
-	"github.com/fionera/haproxy-go/pkg/stream"
+	"github.com/fionera/haproxy-go/pkg/encoding"
 	"log"
 	"net"
 )
@@ -19,12 +18,12 @@ const (
 )
 
 type Handler interface {
-	HandleSPOE(*newenc.ActionWriter, *stream.Message)
+	HandleSPOE(*encoding.ActionWriter, *encoding.Message)
 }
 
-type HandlerFunc func(*newenc.ActionWriter, *stream.Message)
+type HandlerFunc func(*encoding.ActionWriter, *encoding.Message)
 
-func (h HandlerFunc) HandleSPOE(w *newenc.ActionWriter, m *stream.Message) {
+func (h HandlerFunc) HandleSPOE(w *encoding.ActionWriter, m *encoding.Message) {
 	h(w, m)
 }
 

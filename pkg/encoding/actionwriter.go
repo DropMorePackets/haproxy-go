@@ -1,8 +1,7 @@
-package newenc
+package encoding
 
 import (
 	"fmt"
-	"github.com/fionera/haproxy-go/pkg/encoding"
 	"net/netip"
 	"sync"
 )
@@ -84,7 +83,7 @@ func (aw *ActionWriter) actionHeader(t actionType, s varScope, name []byte) erro
 	aw.data[aw.off] = byte(s)
 	aw.off++
 
-	n, err := encoding.PutBytes(aw.data[aw.off:], name)
+	n, err := PutBytes(aw.data[aw.off:], name)
 	if err != nil {
 		return err
 	}
@@ -102,10 +101,10 @@ func (aw *ActionWriter) SetStringBytes(s varScope, name string, v []byte) error 
 		return err
 	}
 
-	aw.data[aw.off] = byte(dataTypeString)
+	aw.data[aw.off] = byte(DataTypeString)
 	aw.off++
 
-	n, err := encoding.PutBytes(aw.data[aw.off:], v)
+	n, err := PutBytes(aw.data[aw.off:], v)
 	if err != nil {
 		return err
 	}
@@ -122,10 +121,10 @@ func (aw *ActionWriter) SetBinary(s varScope, name string, v []byte) error {
 		return err
 	}
 
-	aw.data[aw.off] = byte(dataTypeBinary)
+	aw.data[aw.off] = byte(DataTypeBinary)
 	aw.off++
 
-	n, err := encoding.PutBytes(aw.data[aw.off:], v)
+	n, err := PutBytes(aw.data[aw.off:], v)
 	if err != nil {
 		return err
 	}
@@ -139,7 +138,7 @@ func (aw *ActionWriter) SetNull(s varScope, name string) error {
 		return err
 	}
 
-	aw.data[aw.off] = byte(dataTypeNull)
+	aw.data[aw.off] = byte(DataTypeNull)
 	aw.off++
 
 	return nil
@@ -149,7 +148,7 @@ func (aw *ActionWriter) SetBool(s varScope, name string, v bool) error {
 		return err
 	}
 
-	aw.data[aw.off] = byte(dataTypeBool)
+	aw.data[aw.off] = byte(DataTypeBool)
 	if v {
 		aw.data[aw.off] |= dataFlagTrue
 	}
@@ -171,10 +170,10 @@ func (aw *ActionWriter) SetInt64(s varScope, name string, v int64) error {
 		return err
 	}
 
-	aw.data[aw.off] = byte(dataTypeInt64)
+	aw.data[aw.off] = byte(DataTypeInt64)
 	aw.off++
 
-	n, err := encoding.PutVarint(aw.data[aw.off:], v)
+	n, err := PutVarint(aw.data[aw.off:], v)
 	if err != nil {
 		return err
 	}
@@ -193,15 +192,15 @@ func (aw *ActionWriter) SetAddr(s varScope, name string, v netip.Addr) error {
 
 	switch {
 	case v.Is6():
-		aw.data[aw.off] = byte(dataTypeIPV6)
+		aw.data[aw.off] = byte(DataTypeIPV6)
 	case v.Is4():
-		aw.data[aw.off] = byte(dataTypeIPV4)
+		aw.data[aw.off] = byte(DataTypeIPV4)
 	default:
 		return fmt.Errorf("invalid address")
 	}
 	aw.off++
 
-	n, err := encoding.PutAddr(aw.data[aw.off:], v)
+	n, err := PutAddr(aw.data[aw.off:], v)
 	if err != nil {
 		return err
 	}

@@ -1,8 +1,7 @@
-package newenc
+package encoding
 
 import (
 	"fmt"
-	"github.com/fionera/haproxy-go/pkg/encoding"
 	"net/netip"
 	"sync"
 )
@@ -47,7 +46,7 @@ func (aw *KVWriter) Bytes() []byte {
 }
 
 func (aw *KVWriter) writeKey(name []byte) error {
-	n, err := encoding.PutBytes(aw.data[aw.off:], name)
+	n, err := PutBytes(aw.data[aw.off:], name)
 	if err != nil {
 		return err
 	}
@@ -61,10 +60,10 @@ func (aw *KVWriter) SetString(name string, v string) error {
 		return err
 	}
 
-	aw.data[aw.off] = byte(dataTypeString)
+	aw.data[aw.off] = byte(DataTypeString)
 	aw.off++
 
-	n, err := encoding.PutBytes(aw.data[aw.off:], []byte(v))
+	n, err := PutBytes(aw.data[aw.off:], []byte(v))
 	if err != nil {
 		return err
 	}
@@ -78,10 +77,10 @@ func (aw *KVWriter) SetBinary(name string, v []byte) error {
 		return err
 	}
 
-	aw.data[aw.off] = byte(dataTypeBinary)
+	aw.data[aw.off] = byte(DataTypeBinary)
 	aw.off++
 
-	n, err := encoding.PutBytes(aw.data[aw.off:], v)
+	n, err := PutBytes(aw.data[aw.off:], v)
 	if err != nil {
 		return err
 	}
@@ -95,7 +94,7 @@ func (aw *KVWriter) SetNull(name string) error {
 		return err
 	}
 
-	aw.data[aw.off] = byte(dataTypeNull)
+	aw.data[aw.off] = byte(DataTypeNull)
 	aw.off++
 
 	return nil
@@ -105,7 +104,7 @@ func (aw *KVWriter) SetBool(name string, v bool) error {
 		return err
 	}
 
-	aw.data[aw.off] = byte(dataTypeBool)
+	aw.data[aw.off] = byte(DataTypeBool)
 	if v {
 		aw.data[aw.off] |= dataFlagTrue
 	}
@@ -115,14 +114,14 @@ func (aw *KVWriter) SetBool(name string, v bool) error {
 }
 
 func (aw *KVWriter) SetUInt32(name string, v uint32) error {
-	return aw.setInt(name, dataTypeUInt32, int64(v))
+	return aw.setInt(name, DataTypeUInt32, int64(v))
 }
 
 func (aw *KVWriter) SetInt32(name string, v int32) error {
-	return aw.setInt(name, dataTypeInt32, int64(v))
+	return aw.setInt(name, DataTypeInt32, int64(v))
 }
 
-func (aw *KVWriter) setInt(name string, d dataType, v int64) error {
+func (aw *KVWriter) setInt(name string, d DataType, v int64) error {
 	if err := aw.writeKey([]byte(name)); err != nil {
 		return err
 	}
@@ -130,7 +129,7 @@ func (aw *KVWriter) setInt(name string, d dataType, v int64) error {
 	aw.data[aw.off] = byte(d)
 	aw.off++
 
-	n, err := encoding.PutVarint(aw.data[aw.off:], v)
+	n, err := PutVarint(aw.data[aw.off:], v)
 	if err != nil {
 		return err
 	}
@@ -140,10 +139,10 @@ func (aw *KVWriter) setInt(name string, d dataType, v int64) error {
 }
 
 func (aw *KVWriter) SetInt64(name string, v int64) error {
-	return aw.setInt(name, dataTypeInt64, v)
+	return aw.setInt(name, DataTypeInt64, v)
 }
 func (aw *KVWriter) SetUInt64(name string, v uint64) error {
-	return aw.setInt(name, dataTypeUInt64, int64(v))
+	return aw.setInt(name, DataTypeUInt64, int64(v))
 }
 
 func (aw *KVWriter) SetAddr(name string, v netip.Addr) error {
@@ -153,15 +152,15 @@ func (aw *KVWriter) SetAddr(name string, v netip.Addr) error {
 
 	switch {
 	case v.Is6():
-		aw.data[aw.off] = byte(dataTypeIPV6)
+		aw.data[aw.off] = byte(DataTypeIPV6)
 	case v.Is4():
-		aw.data[aw.off] = byte(dataTypeIPV4)
+		aw.data[aw.off] = byte(DataTypeIPV4)
 	default:
 		return fmt.Errorf("invalid address")
 	}
 	aw.off++
 
-	n, err := encoding.PutAddr(aw.data[aw.off:], v)
+	n, err := PutAddr(aw.data[aw.off:], v)
 	if err != nil {
 		return err
 	}

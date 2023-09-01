@@ -4,6 +4,24 @@ import (
 	"net/netip"
 )
 
+type DataType byte
+
+const (
+	DataTypeNull   DataType = 0
+	DataTypeBool   DataType = 1
+	DataTypeInt32  DataType = 2
+	DataTypeUInt32 DataType = 3
+	DataTypeInt64  DataType = 4
+	DataTypeUInt64 DataType = 5
+	DataTypeIPV4   DataType = 6
+	DataTypeIPV6   DataType = 7
+	DataTypeString DataType = 8
+	DataTypeBinary DataType = 9
+
+	dataTypeMask byte = 0x0F
+	dataFlagTrue byte = 0x10
+)
+
 func PutBytes(b []byte, v []byte) (int, error) {
 	l := len(v)
 	n, err := PutVarint(b, int64(l))

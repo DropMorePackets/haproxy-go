@@ -4,8 +4,7 @@ package spop
 
 import (
 	"fmt"
-	"github.com/fionera/haproxy-go/pkg/newenc"
-	"github.com/fionera/haproxy-go/pkg/stream"
+	"github.com/fionera/haproxy-go/pkg/encoding"
 	"github.com/fionera/haproxy-go/pkg/testutil"
 	"net/http"
 	"testing"
@@ -15,7 +14,7 @@ func TestE2E(t *testing.T) {
 	tests := []E2ETest{
 		{
 			name: "default",
-			hf:   func(w *newenc.ActionWriter, m *stream.Message) {},
+			hf:   func(w *encoding.ActionWriter, m *encoding.Message) {},
 			tf: func(t *testing.T, config testutil.HAProxyConfig) {
 				resp, err := http.Get("http://127.0.0.1:" + config.FrontendPort)
 				if err != nil {
@@ -29,8 +28,8 @@ func TestE2E(t *testing.T) {
 		},
 		{
 			name: "status-code acl",
-			hf: func(w *newenc.ActionWriter, m *stream.Message) {
-				err := w.SetInt64(newenc.VarScopeTransaction, "statuscode", http.StatusUnauthorized)
+			hf: func(w *encoding.ActionWriter, m *encoding.Message) {
+				err := w.SetInt64(encoding.VarScopeTransaction, "statuscode", http.StatusUnauthorized)
 				if err != nil {
 					t.Fatalf("writing status-code: %v", err)
 				}

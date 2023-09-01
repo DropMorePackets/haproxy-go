@@ -1,12 +1,10 @@
-package stream
+package encoding
 
 import (
 	"fmt"
 	"net"
 	"net/netip"
 	"sync"
-
-	"github.com/fionera/haproxy-go/pkg/encoding"
 )
 
 var kvEntryPool = sync.Pool{
@@ -144,24 +142,6 @@ func (k *KVEntry) Value() any {
 	}
 }
 
-type DataType byte
-
-const (
-	DataTypeNull   DataType = 0
-	DataTypeBool   DataType = 1
-	DataTypeInt32  DataType = 2
-	DataTypeUInt32 DataType = 3
-	DataTypeInt64  DataType = 4
-	DataTypeUInt64 DataType = 5
-	DataTypeIPV4   DataType = 6
-	DataTypeIPV6   DataType = 7
-	DataTypeString DataType = 8
-	DataTypeBinary DataType = 9
-
-	dataTypeMask byte = 0x0F
-	dataFlagTrue byte = 0x10
-)
-
 func (k *KVScanner) Next(e *KVEntry) bool {
 	if len(k.buf) == 0 {
 		return false
@@ -172,7 +152,7 @@ func (k *KVScanner) Next(e *KVEntry) bool {
 	}
 	k.left--
 
-	nameLen, n, err := encoding.Varint(k.buf)
+	nameLen, n, err := Varint(k.buf)
 	if err != nil {
 		k.lastErr = err
 		return false
@@ -193,7 +173,7 @@ func (k *KVScanner) Next(e *KVEntry) bool {
 
 	case DataTypeInt32, DataTypeInt64,
 		DataTypeUInt32, DataTypeUInt64:
-		e.intVal, n, k.lastErr = encoding.Varint(k.buf)
+		e.intVal, n, k.lastErr = Varint(k.buf)
 		if k.lastErr != nil {
 			return false
 		}
@@ -209,7 +189,7 @@ func (k *KVScanner) Next(e *KVEntry) bool {
 		k.buf = k.buf[net.IPv6len:]
 
 	case DataTypeString:
-		nameLen, n, err := encoding.Varint(k.buf)
+		nameLen, n, err := Varint(k.buf)
 		if err != nil {
 			k.lastErr = err
 			return false
@@ -220,7 +200,7 @@ func (k *KVScanner) Next(e *KVEntry) bool {
 		k.buf = k.buf[nameLen:]
 
 	case DataTypeBinary:
-		valLen, n, err := encoding.Varint(k.buf)
+		valLen, n, err := Varint(k.buf)
 		if err != nil {
 			k.lastErr = err
 			return false

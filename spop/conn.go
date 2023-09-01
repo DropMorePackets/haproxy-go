@@ -3,11 +3,9 @@ package spop
 import (
 	"encoding/binary"
 	"fmt"
-	"github.com/fionera/haproxy-go/pkg/newenc"
+	"github.com/fionera/haproxy-go/pkg/encoding"
 	"io"
 	"strings"
-
-	"github.com/fionera/haproxy-go/pkg/stream"
 )
 
 func (c *conn) readFrame(f *frame) bool {
@@ -43,10 +41,10 @@ func (c *conn) onHello(f *frame) error {
 	}
 	c.gotHello = true
 
-	k := stream.AcquireKVEntry()
-	defer stream.ReleaseKVEntry(k)
+	k := encoding.AcquireKVEntry()
+	defer encoding.ReleaseKVEntry(k)
 
-	s := stream.AcquireKVScanner(f.buf.ReadBytes(), -1)
+	s := encoding.AcquireKVScanner(f.buf.ReadBytes(), -1)
 	for s.Next(k) {
 		switch {
 		case k.NameEquals(helloKeyMaxFrameSize):
@@ -72,8 +70,8 @@ func (c *conn) onHello(f *frame) error {
 }
 
 func (c *conn) onNotify(f *frame) error {
-	m := stream.AcquireMessage()
-	defer stream.ReleaseMessage(m)
+	m := encoding.AcquireMessage()
+	defer encoding.ReleaseMessage(m)
 
 	rf := acquireFrame()
 	defer releaseFrame(rf)
@@ -88,11 +86,11 @@ func (c *conn) onNotify(f *frame) error {
 		return f.err
 	}
 
-	w := newenc.AcquireActionWriter(rf.buf.WriteBytes(), 0)
-	defer newenc.ReleaseActionWriter(w)
+	w := encoding.AcquireActionWriter(rf.buf.WriteBytes(), 0)
+	defer encoding.ReleaseActionWriter(w)
 
-	s := stream.AcquireMessageScanner(f.buf.ReadBytes())
-	defer stream.ReleaseMessageScanner(s)
+	s := encoding.AcquireMessageScanner(f.buf.ReadBytes())
+	defer encoding.ReleaseMessageScanner(s)
 	for s.Next(m) {
 		c.handler.HandleSPOE(w, m)
 
@@ -128,7 +126,7 @@ func (c *conn) writeHello() error {
 		return f.err
 	}
 
-	w := newenc.NewKVWriter(f.buf.WriteBytes(), 0)
+	w := encoding.NewKVWriter(f.buf.WriteBytes(), 0)
 	if err := w.SetString(helloKeyVersion, version); err != nil {
 		return err
 	}
@@ -171,7 +169,7 @@ func (c *conn) writeDisconnect() error {
 		errCode = spoeErrorUnknown
 	}
 
-	w := newenc.NewKVWriter(f.buf.WriteBytes(), 0)
+	w := encoding.NewKVWriter(f.buf.WriteBytes(), 0)
 	if err := w.SetUInt32("status-code", uint32(errCode)); err != nil {
 		return err
 	}

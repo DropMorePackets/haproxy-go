@@ -1,9 +1,7 @@
-package stream
+package encoding
 
 import (
 	"sync"
-
-	"github.com/fionera/haproxy-go/pkg/encoding"
 )
 
 var messagePool = sync.Pool{
@@ -83,7 +81,7 @@ func (s *MessageScanner) Next(m *Message) bool {
 		return false
 	}
 
-	nameLen, n, err := encoding.Varint(s.buf)
+	nameLen, n, err := Varint(s.buf)
 	if err != nil {
 		s.lastErr = err
 		return false
