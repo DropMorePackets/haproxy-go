@@ -3,6 +3,7 @@ package stream
 import (
 	"fmt"
 	"net"
+	"net/netip"
 	"sync"
 
 	"github.com/fionera/haproxy-go/pkg/encoding"
@@ -70,7 +71,7 @@ func (k *KVScanner) Error() error {
 type KVEntry struct {
 	name []byte
 
-	dataType byte
+	dataType DataType
 
 	// if the content is a varint, we directly decode it.
 	// else its decoded on the fly
@@ -95,22 +96,70 @@ func (k *KVEntry) ValueBool() bool {
 	return k.boolVar
 }
 
+func (k *KVEntry) ValueAddr() netip.Addr {
+	addr, ok := netip.AddrFromSlice(k.byteVal)
+	if !ok {
+		panic("invalid addr decode")
+	}
+	return addr
+}
+
 func (k *KVEntry) NameEquals(s string) bool {
 	// bytes.Equal describes this operation as alloc free
 	return string(k.name) == s
 }
 
+func (k *KVEntry) Type() DataType {
+	return k.dataType
+}
+
+// Value returns the typed value for the KVEntry. It can allocate memory
+// which is why assertions and direct type access is recommended.
+func (k *KVEntry) Value() any {
+	switch k.dataType {
+	case DataTypeNull:
+		return nil
+	case DataTypeBool:
+		return k.boolVar
+	case DataTypeInt32:
+		return int32(k.intVal)
+	case DataTypeInt64:
+		return k.intVal
+	case DataTypeUInt32:
+		return uint32(k.intVal)
+	case DataTypeUInt64:
+		return uint64(k.intVal)
+	case DataTypeIPV4, DataTypeIPV6:
+		addr, ok := netip.AddrFromSlice(k.byteVal)
+		if !ok {
+			panic("invalid addr decode")
+		}
+		return addr
+	case DataTypeString:
+		return string(k.byteVal)
+	case DataTypeBinary:
+		return k.byteVal
+	default:
+		panic("unknown datatype")
+	}
+}
+
+type DataType byte
+
 const (
-	dataTypeNull   byte = 0
-	dataTypeBool   byte = 1
-	dataTypeInt32  byte = 2
-	dataTypeUInt32 byte = 3
-	dataTypeInt64  byte = 4
-	dataTypeUInt64 byte = 5
-	dataTypeIPV4   byte = 6
-	dataTypeIPV6   byte = 7
-	dataTypeString byte = 8
-	dataTypeBinary byte = 9
+	DataTypeNull   DataType = 0
+	DataTypeBool   DataType = 1
+	DataTypeInt32  DataType = 2
+	DataTypeUInt32 DataType = 3
+	DataTypeInt64  DataType = 4
+	DataTypeUInt64 DataType = 5
+	DataTypeIPV4   DataType = 6
+	DataTypeIPV6   DataType = 7
+	DataTypeString DataType = 8
+	DataTypeBinary DataType = 9
+
+	dataTypeMask byte = 0x0F
+	dataFlagTrue byte = 0x10
 )
 
 func (k *KVScanner) Next(e *KVEntry) bool {
@@ -133,20 +182,17 @@ func (k *KVScanner) Next(e *KVEntry) bool {
 	e.name = k.buf[:nameLen]
 	k.buf = k.buf[nameLen:]
 
-	const dataTypeMask byte = 0x0F
-	const dataFlagTrue byte = 0x10
-
-	e.dataType = k.buf[0] & dataTypeMask
+	e.dataType = DataType(k.buf[0] & dataTypeMask)
 	// just always decode the boolVar even tho its wrong.
 	e.boolVar = k.buf[0]&dataFlagTrue > 0
 	k.buf = k.buf[1:]
 
 	switch e.dataType {
-	case dataTypeNull, dataTypeBool:
+	case DataTypeNull, DataTypeBool:
 		// noop
 
-	case dataTypeInt32, dataTypeInt64,
-		dataTypeUInt32, dataTypeUInt64:
+	case DataTypeInt32, DataTypeInt64,
+		DataTypeUInt32, DataTypeUInt64:
 		e.intVal, n, k.lastErr = encoding.Varint(k.buf)
 		if k.lastErr != nil {
 			return false
@@ -154,15 +200,15 @@ func (k *KVScanner) Next(e *KVEntry) bool {
 
 		k.buf = k.buf[n:]
 
-	case dataTypeIPV4:
+	case DataTypeIPV4:
 		e.byteVal = k.buf[:net.IPv4len]
 		k.buf = k.buf[net.IPv4len:]
 
-	case dataTypeIPV6:
+	case DataTypeIPV6:
 		e.byteVal = k.buf[:net.IPv6len]
 		k.buf = k.buf[net.IPv6len:]
 
-	case dataTypeString:
+	case DataTypeString:
 		nameLen, n, err := encoding.Varint(k.buf)
 		if err != nil {
 			k.lastErr = err
@@ -173,7 +219,7 @@ func (k *KVScanner) Next(e *KVEntry) bool {
 		e.byteVal = k.buf[:nameLen]
 		k.buf = k.buf[nameLen:]
 
-	case dataTypeBinary:
+	case DataTypeBinary:
 		valLen, n, err := encoding.Varint(k.buf)
 		if err != nil {
 			k.lastErr = err
