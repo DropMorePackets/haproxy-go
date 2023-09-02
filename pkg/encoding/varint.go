@@ -2,12 +2,46 @@ package encoding
 
 import (
 	"fmt"
+	"io"
 )
 
 var (
 	ErrUnterminatedSequence = fmt.Errorf("unterminated sequence")
 	ErrInsufficientSpace    = fmt.Errorf("insufficient space in buffer")
 )
+
+func ReadVarint(rd io.ByteReader) (int64, error) {
+	b, err := rd.ReadByte()
+	if err != nil {
+		return 0, ErrUnterminatedSequence
+	}
+
+	val := int64(b)
+	off := 1
+
+	if val < 240 {
+		return val, nil
+	}
+
+	r := uint(4)
+	for {
+		b, err := rd.ReadByte()
+		if err != nil {
+			return 0, ErrUnterminatedSequence
+		}
+
+		v := int64(b)
+		val += v << r
+		off++
+		r += 7
+
+		if v < 128 {
+			break
+		}
+	}
+
+	return val, nil
+}
 
 // Source: https://github.com/criteo/haproxy-spoe-go/blob/master/encoding.go
 func PutVarint(b []byte, i int64) (int, error) {

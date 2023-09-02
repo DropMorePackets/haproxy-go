@@ -4,6 +4,7 @@ import (
 	"bufio"
 	"encoding/binary"
 	"fmt"
+	"github.com/fionera/haproxy-go/pkg/encoding"
 	"net"
 )
 
@@ -63,7 +64,7 @@ func (v *IPv6AddressKey) String() string {
 type StringKey string
 
 func (v *StringKey) Unmarshal(r *bufio.Reader, keySize int64) error {
-	valueLength, err := binary.ReadVarint(r)
+	valueLength, err := encoding.ReadVarint(r)
 	if err != nil {
 		return err
 	}
@@ -114,21 +115,21 @@ func (f *FreqData) String() string {
 
 func (f *FreqData) Unmarshal(r *bufio.Reader) error {
 	// start date of current period (wrapping ticks)
-	currentTick, err := binary.ReadVarint(r)
+	currentTick, err := encoding.ReadVarint(r)
 	if err != nil {
 		return err
 	}
 	f.CurrentTick = currentTick
 
 	// cumulated value for current period
-	currentPeriod, err := binary.ReadVarint(r)
+	currentPeriod, err := encoding.ReadVarint(r)
 	if err != nil {
 		return err
 	}
 	f.CurrentPeriod = currentPeriod
 
 	// value for last period
-	lastPeriod, err := binary.ReadVarint(r)
+	lastPeriod, err := encoding.ReadVarint(r)
 	if err != nil {
 		return err
 	}
@@ -140,7 +141,7 @@ func (f *FreqData) Unmarshal(r *bufio.Reader) error {
 type SignedIntegerData int32
 
 func (v *SignedIntegerData) Unmarshal(r *bufio.Reader) error {
-	value, err := binary.ReadVarint(r)
+	value, err := encoding.ReadVarint(r)
 	if err != nil {
 		return err
 	}
@@ -156,7 +157,7 @@ func (v *SignedIntegerData) String() string {
 type UnsignedIntegerData uint32
 
 func (v *UnsignedIntegerData) Unmarshal(r *bufio.Reader) error {
-	value, err := binary.ReadVarint(r)
+	value, err := encoding.ReadVarint(r)
 	if err != nil {
 		return err
 	}
@@ -172,7 +173,7 @@ func (v *UnsignedIntegerData) String() string {
 type UnsignedLongLongData int64
 
 func (v *UnsignedLongLongData) Unmarshal(r *bufio.Reader) error {
-	value, err := binary.ReadVarint(r)
+	value, err := encoding.ReadVarint(r)
 	if err != nil {
 		return err
 	}
@@ -199,7 +200,7 @@ func (f *DictData) String() string {
 }
 
 func (f *DictData) Unmarshal(r *bufio.Reader) error {
-	length, err := binary.ReadVarint(r)
+	length, err := encoding.ReadVarint(r)
 	if err != nil {
 		return err
 	}
@@ -209,7 +210,7 @@ func (f *DictData) Unmarshal(r *bufio.Reader) error {
 		return nil
 	}
 
-	id, err := binary.ReadVarint(r)
+	id, err := encoding.ReadVarint(r)
 	if err != nil {
 		return err
 	}
@@ -219,7 +220,7 @@ func (f *DictData) Unmarshal(r *bufio.Reader) error {
 		return nil
 	}
 
-	valueLength, err := binary.ReadVarint(r)
+	valueLength, err := encoding.ReadVarint(r)
 	if err != nil {
 		return err
 	}

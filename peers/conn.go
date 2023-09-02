@@ -2,7 +2,9 @@ package peers
 
 import (
 	"bufio"
+	"errors"
 	"fmt"
+	"io"
 	"log"
 	"net"
 	"time"
@@ -11,12 +13,12 @@ import (
 type Conn struct {
 	conn                net.Conn
 	r                   *bufio.Reader
-	config              *Config
-	handshakeFn         func() error
 	nextHeartbeat       *time.Ticker
 	lastMessageTimer    *time.Timer
 	lastTableDefinition *StickTableDefinition
 	lastEntryUpdate     *EntryUpdate
+
+	handler Handler
 }
 
 func (c *Conn) Close() error {
@@ -63,7 +65,7 @@ func (c *Conn) peerHandshake() error {
 }
 
 func (c *Conn) Handshake() error {
-	if err := c.handshakeFn(); err != nil {
+	if err := c.peerHandshake(); err != nil {
 		return err
 	}
 
@@ -187,9 +189,7 @@ func (c *Conn) stickTableEntryUpdate(t StickTableMessageType) error {
 
 	c.lastEntryUpdate = &e
 
-	if c.config.UpdateHandler != nil {
-		c.config.UpdateHandler(&e)
-	}
+	c.handler.Update(&e)
 
 	return nil
 }
@@ -246,4 +246,23 @@ func (c *Conn) lastMessage() {
 	<-c.lastMessageTimer.C
 	log.Println("last message timer expired: closing connection")
 	_ = c.conn.Close()
+}
+
+func (c *Conn) serve() {
+	defer c.Close()
+
+	if err := c.Handshake(); err != nil {
+		panic(err)
+	}
+
+	for {
+		err := c.Read()
+		if errors.Is(err, net.ErrClosed) || errors.Is(err, io.EOF) {
+			return
+		}
+
+		if err != nil {
+			panic(err)
+		}
+	}
 }

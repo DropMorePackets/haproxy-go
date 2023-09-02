@@ -1,5 +1,8 @@
 # A HAProxy peer protocol implementation in Go
 
+| ⚠️         **Proof of Concept**: This is a work in progress |
+|-------------------------------------------------------------|
+
 # Applications
 - Prometheus Exporter
 - Reflector / Aggregator
