@@ -10,8 +10,9 @@ https://github.com/babiel/haproxy-spoe-go
 Tested and compared via benchstat (thx to https://www.rodolfocarvalho.net/blog/go-test-bench-pipe-to-benchstat/)
 
     go test -run='^$' -bench=. -benchmem -count=5 | tee >(benchstat /dev/stdin)
+---
 
-Tested on a MacBookPro18,4 with a M1 Max:
+MacBookPro18,4 with M1 Max:
 ```
 goos: darwin
 goarch: arm64
@@ -58,6 +59,59 @@ geomean                ²
 Criteo-10    12.00 ± ∞ ¹
 Negasus-10   18.00 ± ∞ ¹
 Fionera-10   0.000 ± ∞ ¹
+geomean                ²
+¹ need >= 6 samples for confidence interval at level 0.95
+² summaries must be >0 to compute geomean
+```
+---
+```
+goos: linux
+goarch: amd64
+pkg: github.com/fionera/haproxy-go/spop/benchmarks
+cpu: AMD EPYC 7502P 32-Core Processor
+BenchmarkCriteo-48     	 5710826	       253.1 ns/op	     263 B/op	      12 allocs/op
+BenchmarkCriteo-48     	 4294416	       265.9 ns/op	     263 B/op	      12 allocs/op
+BenchmarkCriteo-48     	 4285262	       280.6 ns/op	     263 B/op	      12 allocs/op
+BenchmarkCriteo-48     	 4314597	       274.8 ns/op	     263 B/op	      12 allocs/op
+BenchmarkCriteo-48     	 4190436	       290.9 ns/op	     263 B/op	      12 allocs/op
+BenchmarkNegasus-48    	 1235547	       900.0 ns/op	     756 B/op	      18 allocs/op
+BenchmarkNegasus-48    	 1693122	       688.2 ns/op	     755 B/op	      18 allocs/op
+BenchmarkNegasus-48    	 1723869	       692.1 ns/op	     755 B/op	      18 allocs/op
+BenchmarkNegasus-48    	 1751373	       719.4 ns/op	     755 B/op	      18 allocs/op
+BenchmarkNegasus-48    	 1700374	       663.0 ns/op	     755 B/op	      18 allocs/op
+BenchmarkFionera-48    	111115724	        10.79 ns/op	       0 B/op	       0 allocs/op
+BenchmarkFionera-48    	127499919	         9.095 ns/op	       0 B/op	       0 allocs/op
+BenchmarkFionera-48    	97899013	        10.25 ns/op	       0 B/op	       0 allocs/op
+BenchmarkFionera-48    	146508001	         9.690 ns/op	       0 B/op	       0 allocs/op
+BenchmarkFionera-48    	124598562	        11.72 ns/op	       0 B/op	       0 allocs/op
+PASS
+ok  	github.com/fionera/haproxy-go/spop/benchmarks	27.312s
+goos: linux
+goarch: amd64
+pkg: github.com/fionera/haproxy-go/spop/benchmarks
+cpu: AMD EPYC 7502P 32-Core Processor
+           │  /dev/stdin  │
+           │    sec/op    │
+Criteo-48    274.8n ± ∞ ¹
+Negasus-48   692.1n ± ∞ ¹
+Fionera-48   10.25n ± ∞ ¹
+geomean      124.9n
+¹ need >= 6 samples for confidence interval at level 0.95
+
+           │ /dev/stdin  │
+           │    B/op     │
+Criteo-48    263.0 ± ∞ ¹
+Negasus-48   755.0 ± ∞ ¹
+Fionera-48   0.000 ± ∞ ¹
+geomean                ²
+¹ need >= 6 samples for confidence interval at level 0.95
+² summaries must be >0 to compute geomean
+
+           │ /dev/stdin  │
+           │  allocs/op  │
+Criteo-48    12.00 ± ∞ ¹
+Negasus-48   18.00 ± ∞ ¹
+Fionera-48   0.000 ± ∞ ¹
 geomean                ²
 ¹ need >= 6 samples for confidence interval at level 0.95
 ² summaries must be >0 to compute geomean
