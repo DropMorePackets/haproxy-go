@@ -69,6 +69,22 @@ func TestE2E(t *testing.T) {
 			},
 			backendCfg: "http-request return status 401 if { var(txn.e2e.error) -m found }",
 		},
+		{
+			name: "recover from panic",
+			hf: func(ctx context.Context, w *encoding.ActionWriter, m *encoding.Message) {
+				panic("example panic")
+			},
+			tf: func(t *testing.T, config testutil.HAProxyConfig) {
+				resp, err := http.Get("http://127.0.0.1:" + config.FrontendPort)
+				if err != nil {
+					t.Fatal(err)
+				}
+
+				if resp.StatusCode != http.StatusOK {
+					t.Fatalf("expected %d; got %d", http.StatusOK, resp.StatusCode)
+				}
+			},
+		},
 	}
 
 	t.Parallel()
