@@ -3,18 +3,20 @@
 package spop
 
 import (
+	"context"
 	"fmt"
 	"github.com/fionera/haproxy-go/pkg/encoding"
 	"github.com/fionera/haproxy-go/pkg/testutil"
 	"net/http"
 	"testing"
+	"time"
 )
 
 func TestE2E(t *testing.T) {
 	tests := []E2ETest{
 		{
 			name: "default",
-			hf:   func(w *encoding.ActionWriter, m *encoding.Message) {},
+			hf:   func(_ context.Context, w *encoding.ActionWriter, m *encoding.Message) {},
 			tf: func(t *testing.T, config testutil.HAProxyConfig) {
 				resp, err := http.Get("http://127.0.0.1:" + config.FrontendPort)
 				if err != nil {
@@ -28,7 +30,7 @@ func TestE2E(t *testing.T) {
 		},
 		{
 			name: "status-code acl",
-			hf: func(w *encoding.ActionWriter, m *encoding.Message) {
+			hf: func(_ context.Context, w *encoding.ActionWriter, m *encoding.Message) {
 				err := w.SetInt64(encoding.VarScopeTransaction, "statuscode", http.StatusUnauthorized)
 				if err != nil {
 					t.Fatalf("writing status-code: %v", err)
@@ -45,6 +47,27 @@ func TestE2E(t *testing.T) {
 				}
 			},
 			backendCfg: "http-request return status 401 if { var(txn.e2e.statuscode) -m int eq 401 }",
+		},
+		{
+			name: "ctx cancel on disconnect",
+			hf: func(ctx context.Context, w *encoding.ActionWriter, m *encoding.Message) {
+				select {
+				case <-ctx.Done():
+				case <-time.After(5 * time.Second):
+					panic("ctx not cancelled")
+				}
+			},
+			tf: func(t *testing.T, config testutil.HAProxyConfig) {
+				resp, err := http.Get("http://127.0.0.1:" + config.FrontendPort)
+				if err != nil {
+					t.Fatal(err)
+				}
+
+				if resp.StatusCode != http.StatusUnauthorized {
+					t.Fatalf("expected %d; got %d", http.StatusUnauthorized, resp.StatusCode)
+				}
+			},
+			backendCfg: "http-request return status 401 if { var(txn.e2e.error) -m found }",
 		},
 	}
 

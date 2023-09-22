@@ -41,7 +41,7 @@ func TestFakeCon(t *testing.T) {
 		}
 	}()
 
-	handler := HandlerFunc(func(_ *encoding.ActionWriter, m *encoding.Message) {
+	handler := HandlerFunc(func(_ context.Context, _ *encoding.ActionWriter, m *encoding.Message) {
 		log.Println(m.NameBytes())
 		cancel()
 	})

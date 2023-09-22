@@ -1,6 +1,7 @@
 package spop
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"github.com/adrianbrad/queue"
@@ -50,9 +51,12 @@ type ProtocolClientOption interface {
 }
 
 func NewProtocolClient(rw io.ReadWriter, handler Handler, opts ...ProtocolClientOption) *ProtocolClient {
+	ctx, cancel := context.WithCancel(context.Background())
 	pc := &ProtocolClient{
-		rw:      rw,
-		handler: handler,
+		rw:        rw,
+		handler:   handler,
+		ctx:       ctx,
+		ctxCancel: cancel,
 	}
 	pc.as = newAsyncScheduler(pc)
 
@@ -60,8 +64,10 @@ func NewProtocolClient(rw io.ReadWriter, handler Handler, opts ...ProtocolClient
 }
 
 type ProtocolClient struct {
-	rw      io.ReadWriter
-	handler Handler
+	rw        io.ReadWriter
+	handler   Handler
+	ctx       context.Context
+	ctxCancel context.CancelFunc
 
 	as *asyncScheduler
 
@@ -71,11 +77,13 @@ type ProtocolClient struct {
 }
 
 func (c *ProtocolClient) Close() error {
-	_, errDisconnect := (&AgentDisconnectFrame{
+	errDisconnect := (&AgentDisconnectFrame{
 		ErrCode: ErrorUnknown,
-	}).WriteTo(c.rw)
+	}).Write(c.rw)
 
-	return errors.Join(errDisconnect)
+	c.ctxCancel()
+
+	return errors.Join(errDisconnect, c.ctx.Err())
 }
 
 func (c *ProtocolClient) frameHandler(f *frame) error {
@@ -113,7 +121,7 @@ const (
 
 	// maxFrameSize represents the maximum frame size allowed by this library
 	// it also represents the maximum slice size that is allowed on stack
-	maxFrameSize = 64*1024 - 1
+	maxFrameSize = 64<<10 - 1
 )
 
 func (c *ProtocolClient) onHAProxyHello(f *frame) error {
@@ -155,6 +163,23 @@ func (c *ProtocolClient) onHAProxyHello(f *frame) error {
 	}).Write(c.rw)
 }
 
+func (c *ProtocolClient) runHandler(ctx context.Context, w *encoding.ActionWriter, m *encoding.Message, handler HandlerFunc) {
+	didPanic := true
+	defer func() {
+		if didPanic {
+			if e := recover(); e != nil {
+				const size = 64 << 10
+				buf := make([]byte, size)
+				buf = buf[:runtime.Stack(buf, false)]
+				log.Printf("spop: panic serving: %v\n%s", e, buf)
+			}
+			return
+		}
+	}()
+	handler(ctx, w, m)
+	didPanic = false
+}
+
 func (c *ProtocolClient) onNotify(f *frame) error {
 	s := encoding.AcquireMessageScanner(f.buf.ReadBytes())
 	defer encoding.ReleaseMessageScanner(s)
@@ -164,7 +189,7 @@ func (c *ProtocolClient) onNotify(f *frame) error {
 
 	fn := func(w *encoding.ActionWriter) error {
 		for s.Next(m) {
-			c.handler.HandleSPOE(w, m)
+			c.runHandler(c.ctx, w, m, c.handler.HandleSPOE)
 
 			if err := m.KV.Discard(); err != nil {
 				return err

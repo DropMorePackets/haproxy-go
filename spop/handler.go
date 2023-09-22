@@ -1,15 +1,16 @@
 package spop
 
 import (
+	"context"
 	"github.com/fionera/haproxy-go/pkg/encoding"
 )
 
 type Handler interface {
-	HandleSPOE(*encoding.ActionWriter, *encoding.Message)
+	HandleSPOE(context.Context, *encoding.ActionWriter, *encoding.Message)
 }
 
-type HandlerFunc func(*encoding.ActionWriter, *encoding.Message)
+type HandlerFunc func(context.Context, *encoding.ActionWriter, *encoding.Message)
 
-func (h HandlerFunc) HandleSPOE(w *encoding.ActionWriter, m *encoding.Message) {
-	h(w, m)
+func (h HandlerFunc) HandleSPOE(ctx context.Context, w *encoding.ActionWriter, m *encoding.Message) {
+	h(ctx, w, m)
 }

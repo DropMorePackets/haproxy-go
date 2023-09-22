@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"github.com/fionera/haproxy-go/pkg/encoding"
 	"github.com/fionera/haproxy-go/spop"
 	"log"
@@ -15,7 +16,7 @@ func main() {
 	log.Fatal(spop.ListenAndServe(":9000", spop.HandlerFunc(HandleSPOE)))
 }
 
-func HandleSPOE(w *encoding.ActionWriter, m *encoding.Message) {
+func HandleSPOE(_ context.Context, w *encoding.ActionWriter, m *encoding.Message) {
 	k := encoding.AcquireKVEntry()
 	defer encoding.ReleaseKVEntry(k)
 
