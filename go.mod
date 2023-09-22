@@ -1,8 +1,11 @@
 module github.com/fionera/haproxy-go
 
-go 1.20
+go 1.21
 
-require golang.org/x/tools v0.12.0
+require (
+	github.com/adrianbrad/queue v1.2.1
+	golang.org/x/tools v0.12.0
+)
 
 require (
 	golang.org/x/mod v0.12.0 // indirect

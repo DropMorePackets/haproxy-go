@@ -19,7 +19,7 @@ func HandleSPOE(w *encoding.ActionWriter, m *encoding.Message) {
 	k := encoding.AcquireKVEntry()
 	defer encoding.ReleaseKVEntry(k)
 
-	for m.KV().Next(k) {
+	for m.KV.Next(k) {
 		if k.NameEquals("headers") {
 			err := w.SetStringBytes(encoding.VarScopeTransaction, "body", k.ValueBytes())
 			if err != nil {
@@ -28,7 +28,7 @@ func HandleSPOE(w *encoding.ActionWriter, m *encoding.Message) {
 		}
 	}
 
-	if m.KV().Error() != nil {
-		log.Println(m.KV().Error())
+	if m.KV.Error() != nil {
+		log.Println(m.KV.Error())
 	}
 }

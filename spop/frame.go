@@ -2,7 +2,9 @@ package spop
 
 import (
 	"encoding/binary"
+	"fmt"
 	"github.com/fionera/haproxy-go/pkg/buffer"
+	"io"
 	"sync"
 
 	"github.com/fionera/haproxy-go/pkg/encoding"
@@ -25,31 +27,9 @@ func acquireFrame() *frame {
 
 func releaseFrame(f *frame) {
 	f.buf.Reset()
-	f.err = nil
 
 	framePool.Put(f)
 }
-
-type frameFlag uint32
-
-const (
-	frameFlagFin  frameFlag = 1
-	frameFlagAbrt frameFlag = 2
-)
-
-type frameType byte
-
-const (
-	// Frames sent by HAProxy
-	frameTypeIDHaproxyHello      frameType = 1
-	frameTypeIDHaproxyDisconnect frameType = 2
-	frameTypeIDNotify            frameType = 3
-
-	// Frames sent by the agents
-	frameTypeIDAgentHello      frameType = 101
-	frameTypeIDAgentDisconnect frameType = 102
-	frameTypeIDAck             frameType = 103
-)
 
 type frameMetadata struct {
 	Flags    frameFlag
@@ -63,33 +43,82 @@ type frame struct {
 
 	frameType frameType
 	meta      frameMetadata
-	err       error
 }
 
-func (f *frame) writeHeader() {
+func (f *frame) ReadFrom(r io.Reader) (int64, error) {
+	if _, err := r.Read(f.length); err != nil {
+		return 0, fmt.Errorf("reading frame length: %w", err)
+	}
+	frameLen := binary.BigEndian.Uint32(f.length)
+
+	f.buf.Reset()
+	dataBuf := f.buf.WriteNBytes(int(frameLen))
+
+	// read full frame into buffer
+	n, err := r.Read(dataBuf)
+	if err != nil {
+		return int64(n + len(f.length)), fmt.Errorf("reading frame payload: %w", err)
+	}
+
+	if n != int(frameLen) {
+		return int64(n + len(f.length)), io.ErrUnexpectedEOF
+	}
+
+	return int64(n + len(f.length)), f.decodeHeader()
+}
+
+func (f *frame) WriteTo(w io.Writer) (int64, error) {
+	binary.BigEndian.PutUint32(f.length, uint32(f.buf.Len()))
+
+	if n, err := w.Write(f.length); err != nil {
+		return int64(n), err
+	}
+
+	n, err := w.Write(f.buf.ReadBytes())
+	return int64(n + len(f.length)), err
+}
+
+func (f *frame) encodeHeader() error {
 	f.buf.WriteNBytes(1)[0] = byte(f.frameType)
 
 	binary.BigEndian.PutUint32(f.buf.WriteNBytes(uint32Len), uint32(f.meta.Flags))
 
-	var n int
-	n, f.err = encoding.PutVarint(f.buf.WriteBytes(), f.meta.StreamID)
+	n, err := encoding.PutVarint(f.buf.WriteBytes(), f.meta.StreamID)
+	if err != nil {
+		return err
+	}
 	f.buf.AdvanceW(n)
 
-	n, f.err = encoding.PutVarint(f.buf.WriteBytes(), f.meta.FrameID)
+	n, err = encoding.PutVarint(f.buf.WriteBytes(), f.meta.FrameID)
+	if err != nil {
+		return err
+	}
 	f.buf.AdvanceW(n)
+
+	return nil
 }
 
-func (f *frame) readHeader() {
+func (f *frame) decodeHeader() error {
 	// We don't need to validate here,
 	// there is validation further down the chain
 	f.frameType = frameType(f.buf.ReadNBytes(1)[0])
 
 	f.meta.Flags = frameFlag(binary.BigEndian.Uint32(f.buf.ReadNBytes(uint32Len)))
 
-	var n int
-	f.meta.StreamID, n, f.err = encoding.Varint(f.buf.ReadBytes())
+	streamID, n, err := encoding.Varint(f.buf.ReadBytes())
+	if err != nil {
+		return err
+	}
+
+	f.meta.StreamID = streamID
 	f.buf.AdvanceR(n)
 
-	f.meta.FrameID, n, f.err = encoding.Varint(f.buf.ReadBytes())
+	frameID, n, err := encoding.Varint(f.buf.ReadBytes())
+	if err != nil {
+		return err
+	}
+	f.meta.FrameID = frameID
 	f.buf.AdvanceR(n)
+
+	return nil
 }

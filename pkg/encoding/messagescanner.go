@@ -35,7 +35,7 @@ func AcquireMessage() *Message {
 
 func ReleaseMessage(m *Message) {
 	m.name = nil
-	m.scanner = nil
+	m.KV = nil
 	m.kvEntryCount = 0
 
 	messagePool.Put(m)
@@ -45,15 +45,11 @@ type Message struct {
 	name []byte
 
 	kvEntryCount byte
-	scanner      *KVScanner
+	KV           *KVScanner
 }
 
 func (m *Message) NameBytes() []byte {
 	return m.name
-}
-
-func (m *Message) KV() *KVScanner {
-	return m.scanner
 }
 
 type MessageScanner struct {
@@ -70,11 +66,12 @@ func (s *MessageScanner) Error() error {
 }
 
 func (s *MessageScanner) Next(m *Message) bool {
-	if m.scanner != nil {
+	if m.KV != nil {
 		// if the scanner is still existing from a previous read
 		// forward the current slice to the correct position
-		s.buf = s.buf[len(s.buf)-m.scanner.RemainingBuf():]
-		ReleaseKVScanner(m.scanner)
+		s.buf = s.buf[len(s.buf)-m.KV.RemainingBuf():]
+		ReleaseKVScanner(m.KV)
+		m.KV = nil
 	}
 
 	if len(s.buf) == 0 {
@@ -94,7 +91,7 @@ func (s *MessageScanner) Next(m *Message) bool {
 	m.kvEntryCount = s.buf[0]
 	s.buf = s.buf[1:]
 
-	m.scanner = AcquireKVScanner(s.buf, int(m.kvEntryCount))
+	m.KV = AcquireKVScanner(s.buf, int(m.kvEntryCount))
 
 	return true
 }

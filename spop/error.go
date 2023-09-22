@@ -4,59 +4,59 @@ import (
 	"fmt"
 )
 
-type spopErrorCode int
+type errorCode int
 
-func (s spopErrorCode) String() string {
-	switch s {
-	case spoeErrorNone:
+func (e errorCode) String() string {
+	switch e {
+	case ErrorNone:
 		return "normal"
-	case spoeErrorIO:
+	case ErrorIO:
 		return "I/O error"
-	case spoeErrorTimeout:
+	case ErrorTimeout:
 		return "a timeout occurred"
-	case spoeErrorTooBig:
+	case ErrorTooBig:
 		return "frame is too big"
-	case spoeErrorInvalid:
+	case ErrorInvalid:
 		return "invalid frame received"
-	case spoeErrorNoVSN:
+	case ErrorNoVSN:
 		return "version value not found"
-	case spoeErrorNoFrameSize:
+	case ErrorNoFrameSize:
 		return "max-frame-size value not found"
-	case spoeErrorNoCap:
+	case ErrorNoCap:
 		return "capabilities value not found"
-	case spoeErrorBadVsn:
+	case ErrorBadVsn:
 		return "unsupported version"
-	case spoeErrorBadFrameSize:
+	case ErrorBadFrameSize:
 		return "max-frame-size too big or too small"
-	case spoeErrorFragNotSupported:
+	case ErrorFragNotSupported:
 		return "fragmentation not supported"
-	case spoeErrorInterlacedFrames:
+	case ErrorInterlacedFrames:
 		return "invalid interlaced frames"
-	case spoeErrorFrameIDNotfound:
+	case ErrorFrameIDNotfound:
 		return "frame-id not found"
-	case spoeErrorRes:
+	case ErrorRes:
 		return "resource allocation error"
-	case spoeErrorUnknown:
+	case ErrorUnknown:
 		return "an unknown error occurred"
 	default:
-		return fmt.Sprintf("unknown spoe error code: %d", s)
+		return fmt.Sprintf("unknown spoe error code: %d", e)
 	}
 }
 
 const (
-	spoeErrorNone spopErrorCode = iota
-	spoeErrorIO
-	spoeErrorTimeout
-	spoeErrorTooBig
-	spoeErrorInvalid
-	spoeErrorNoVSN
-	spoeErrorNoFrameSize
-	spoeErrorNoCap
-	spoeErrorBadVsn
-	spoeErrorBadFrameSize
-	spoeErrorFragNotSupported
-	spoeErrorInterlacedFrames
-	spoeErrorFrameIDNotfound
-	spoeErrorRes
-	spoeErrorUnknown spopErrorCode = 99
+	ErrorNone errorCode = iota
+	ErrorIO
+	ErrorTimeout
+	ErrorTooBig
+	ErrorInvalid
+	ErrorNoVSN
+	ErrorNoFrameSize
+	ErrorNoCap
+	ErrorBadVsn
+	ErrorBadFrameSize
+	ErrorFragNotSupported
+	ErrorInterlacedFrames
+	ErrorFrameIDNotfound
+	ErrorRes
+	ErrorUnknown errorCode = 99
 )
