@@ -46,17 +46,17 @@ func (a *asyncScheduler) schedule(f *frame) {
 
 func newProtocolClient(ctx context.Context, rw io.ReadWriter, handler Handler) *protocolClient {
 	var c protocolClient
-	c.RW = rw
-	c.Handler = handler
-	c.Context, c.ctxCancel = context.WithCancel(ctx)
+	c.rw = rw
+	c.handler = handler
+	c.ctx, c.ctxCancel = context.WithCancel(ctx)
 	c.as = newAsyncScheduler(&c)
 	return &c
 }
 
 type protocolClient struct {
-	RW      io.ReadWriter
-	Handler Handler
-	Context context.Context
+	rw      io.ReadWriter
+	handler Handler
+	ctx     context.Context
 
 	ctxCancel context.CancelFunc
 	as        *asyncScheduler
@@ -69,11 +69,11 @@ type protocolClient struct {
 func (c *protocolClient) Close() error {
 	errDisconnect := (&AgentDisconnectFrame{
 		ErrCode: ErrorUnknown,
-	}).Write(c.RW)
+	}).Write(c.rw)
 
 	c.ctxCancel()
 
-	return errors.Join(errDisconnect, c.Context.Err())
+	return errors.Join(errDisconnect, c.ctx.Err())
 }
 
 func (c *protocolClient) frameHandler(f *frame) error {
@@ -94,7 +94,7 @@ func (c *protocolClient) frameHandler(f *frame) error {
 func (c *protocolClient) Serve() error {
 	for {
 		f := acquireFrame()
-		if _, err := f.ReadFrom(c.RW); err != nil {
+		if _, err := f.ReadFrom(c.rw); err != nil {
 			if errors.Is(err, io.EOF) {
 				return nil
 			}
@@ -150,7 +150,7 @@ func (c *protocolClient) onHAProxyHello(f *frame) error {
 		Version:      version,
 		MaxFrameSize: c.maxFrameSize,
 		Capabilities: []string{capabilityNamePipelining, capabilityNameAsync},
-	}).Write(c.RW)
+	}).Write(c.rw)
 }
 
 func (c *protocolClient) runHandler(ctx context.Context, w *encoding.ActionWriter, m *encoding.Message, handler HandlerFunc) {
@@ -179,7 +179,7 @@ func (c *protocolClient) onNotify(f *frame) error {
 
 	fn := func(w *encoding.ActionWriter) error {
 		for s.Next(m) {
-			c.runHandler(c.Context, w, m, c.Handler.HandleSPOE)
+			c.runHandler(c.ctx, w, m, c.handler.HandleSPOE)
 
 			if err := m.KV.Discard(); err != nil {
 				return err
@@ -193,7 +193,7 @@ func (c *protocolClient) onNotify(f *frame) error {
 		FrameID:              f.meta.FrameID,
 		StreamID:             f.meta.StreamID,
 		ActionWriterCallback: fn,
-	}).Write(c.RW)
+	}).Write(c.rw)
 }
 
 func (c *protocolClient) onHAProxyDisconnect(f *frame) error {
