@@ -8,9 +8,9 @@ import (
 )
 
 type Agent struct {
-	Addr    string
-	Handler Handler
-	Context context.Context
+	Addr        string
+	Handler     Handler
+	BaseContext context.Context
 }
 
 func ListenAndServe(addr string, handler Handler) error {
@@ -30,8 +30,8 @@ func (a *Agent) ListenAndServe() error {
 
 func (a *Agent) Serve(l net.Listener) error {
 	a.Addr = l.Addr().String()
-	if a.Context == nil {
-		a.Context = context.Background()
+	if a.BaseContext == nil {
+		a.BaseContext = context.Background()
 	}
 
 	for {
@@ -40,7 +40,7 @@ func (a *Agent) Serve(l net.Listener) error {
 			return fmt.Errorf("accepting conn: %w", err)
 		}
 
-		p := newProtocolClient(a.Context, nc, a.Handler)
+		p := newProtocolClient(a.BaseContext, nc, a.Handler)
 		go func() {
 			defer nc.Close()
 			defer p.Close()
