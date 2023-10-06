@@ -34,6 +34,11 @@ func (a *Agent) Serve(l net.Listener) error {
 		a.BaseContext = context.Background()
 	}
 
+	go func() {
+		<-a.BaseContext.Done()
+		l.Close()
+	}()
+
 	for {
 		nc, err := l.Accept()
 		if err != nil {
