@@ -38,12 +38,7 @@ func AcquireKVEntry() *KVEntry {
 }
 
 func ReleaseKVEntry(k *KVEntry) {
-	k.name = nil
-	k.dataType = 0
-	k.byteVal = nil
-	k.boolVar = false
-	k.intVal = 0
-
+	k.Reset()
 	kvEntryPool.Put(k)
 }
 
@@ -142,6 +137,14 @@ func (k *KVEntry) Value() any {
 	}
 }
 
+func (k *KVEntry) Reset() {
+	k.name = nil
+	k.dataType = 0
+	k.byteVal = nil
+	k.boolVar = false
+	k.intVal = 0
+}
+
 func (k *KVScanner) Next(e *KVEntry) bool {
 	if len(k.buf) == 0 {
 		return false
@@ -150,6 +153,7 @@ func (k *KVScanner) Next(e *KVEntry) bool {
 	if e == nil {
 		panic("KVEntry cant be nil")
 	}
+	e.Reset()
 	k.left--
 
 	nameLen, n, err := Varint(k.buf)
