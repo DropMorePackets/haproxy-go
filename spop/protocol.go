@@ -153,7 +153,7 @@ func (c *protocolClient) onHAProxyHello(f *frame) error {
 	}).Write(c.rw)
 }
 
-func (c *protocolClient) runHandler(ctx context.Context, w *encoding.ActionWriter, m *encoding.Message, handler HandlerFunc) {
+func (c *protocolClient) runHandler(ctx context.Context, w *encoding.ActionWriter, m *encoding.Message, handler HandlerFunc) (err error) {
 	didPanic := true
 	defer func() {
 		if didPanic {
@@ -161,13 +161,13 @@ func (c *protocolClient) runHandler(ctx context.Context, w *encoding.ActionWrite
 				const size = 64 << 10
 				buf := make([]byte, size)
 				buf = buf[:runtime.Stack(buf, false)]
-				log.Printf("spop: panic serving: %v\n%s", e, buf)
+				err = fmt.Errorf("spop: panic serving: %v\n%s", e, buf)
 			}
-			return
 		}
 	}()
 	handler(ctx, w, m)
 	didPanic = false
+	return
 }
 
 func (c *protocolClient) onNotify(f *frame) error {
@@ -179,7 +179,10 @@ func (c *protocolClient) onNotify(f *frame) error {
 
 	fn := func(w *encoding.ActionWriter) error {
 		for s.Next(m) {
-			c.runHandler(c.ctx, w, m, c.handler.HandleSPOE)
+			err := c.runHandler(c.ctx, w, m, c.handler.HandleSPOE)
+			if err != nil {
+				return err
+			}
 
 			if err := m.KV.Discard(); err != nil {
 				return err
