@@ -12,6 +12,13 @@ func NewSliceBuffer(size int) *SliceBuffer {
 	}
 }
 
+func NewSliceBufferWithSlice(b []byte) *SliceBuffer {
+	return &SliceBuffer{
+		buf:         b,
+		writeOffset: len(b),
+	}
+}
+
 func (s *SliceBuffer) Reset() {
 	s.readOffset = 0
 	s.writeOffset = 0
