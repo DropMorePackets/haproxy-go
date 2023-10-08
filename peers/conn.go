@@ -7,6 +7,7 @@ import (
 	"io"
 	"log"
 	"net"
+	"syscall"
 	"time"
 )
 
@@ -257,7 +258,7 @@ func (c *Conn) serve() {
 
 	for {
 		err := c.Read()
-		if errors.Is(err, net.ErrClosed) || errors.Is(err, io.EOF) {
+		if errors.Is(err, net.ErrClosed) || errors.Is(err, io.EOF || errors.Is(err, syscall.ECONNRESET)) {
 			return
 		}
 
