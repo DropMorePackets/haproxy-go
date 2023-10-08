@@ -5,7 +5,7 @@ import (
 	"testing"
 
 	criteo "github.com/criteo/haproxy-spoe-go"
-	"github.com/fionera/haproxy-go/pkg/encoding"
+	"github.com/dropmorepackets/haproxy-go/pkg/encoding"
 	"github.com/negasus/haproxy-spoe-go/message"
 )
 
@@ -31,7 +31,7 @@ func (d *Dispatcher) ServeCriteo(messages *criteo.MessageIterator) ([]criteo.Act
 	return nil, nil
 }
 
-func (d *Dispatcher) ServeFionera(w *encoding.ActionWriter, m *encoding.Message) {
+func (d *Dispatcher) Servedropmorepackets(w *encoding.ActionWriter, m *encoding.Message) {
 	k := encoding.AcquireKVEntry()
 	defer encoding.ReleaseKVEntry(k)
 
@@ -77,7 +77,7 @@ func BenchmarkNegasus(b *testing.B) {
 	})
 }
 
-func BenchmarkFionera(b *testing.B) {
+func Benchmarkdropmorepackets(b *testing.B) {
 	b.RunParallel(func(pb *testing.PB) {
 		// I am unfair against myself as these structures aren't always
 		// reacquired, but let's do it anyway.
@@ -88,7 +88,7 @@ func BenchmarkFionera(b *testing.B) {
 			s := encoding.AcquireMessageScanner(msgInput)
 
 			for s.Next(m) {
-				dis.ServeFionera(w, m)
+				dis.Servedropmorepackets(w, m)
 			}
 
 			if err := s.Error(); err != nil {

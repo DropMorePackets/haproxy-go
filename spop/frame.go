@@ -3,11 +3,11 @@ package spop
 import (
 	"encoding/binary"
 	"fmt"
-	"github.com/fionera/haproxy-go/pkg/buffer"
+	"github.com/dropmorepackets/haproxy-go/pkg/buffer"
 	"io"
 	"sync"
 
-	"github.com/fionera/haproxy-go/pkg/encoding"
+	"github.com/dropmorepackets/haproxy-go/pkg/encoding"
 )
 
 const uint32Len = 4

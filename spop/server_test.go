@@ -3,8 +3,8 @@ package spop
 import (
 	"context"
 	"encoding/binary"
-	"github.com/fionera/haproxy-go/pkg/encoding"
-	"github.com/fionera/haproxy-go/pkg/testutil"
+	"github.com/dropmorepackets/haproxy-go/pkg/encoding"
+	"github.com/dropmorepackets/haproxy-go/pkg/testutil"
 	"io"
 	"log"
 	"math/rand"

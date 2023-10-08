@@ -5,7 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"github.com/adrianbrad/queue"
-	"github.com/fionera/haproxy-go/pkg/encoding"
+	"github.com/dropmorepackets/haproxy-go/pkg/encoding"
 	"io"
 	"log"
 	"runtime"

@@ -2,7 +2,7 @@ package encoding
 
 import (
 	"fmt"
-	"github.com/fionera/haproxy-go/pkg/testutil"
+	"github.com/dropmorepackets/haproxy-go/pkg/testutil"
 	"testing"
 )
 

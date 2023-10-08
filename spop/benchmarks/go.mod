@@ -1,15 +1,15 @@
-module github.com/fionera/haproxy-go/spop/benchmarks
+module github.com/dropmorepackets/haproxy-go/spop/benchmarks
 
 go 1.21.0
 
-replace github.com/fionera/haproxy-go => ../../
+replace github.com/dropmorepackets/haproxy-go => ../../
 
 // Replace to allow benchmarking
 replace github.com/criteo/haproxy-spoe-go => github.com/babiel/haproxy-spoe-go v1.0.7-0.20220317153857-9119f3323ea8
 
 require (
 	github.com/criteo/haproxy-spoe-go v0.0.0
-	github.com/fionera/haproxy-go v0.0.0
+	github.com/dropmorepackets/haproxy-go v0.0.0
 	github.com/negasus/haproxy-spoe-go v1.0.4
 )
 

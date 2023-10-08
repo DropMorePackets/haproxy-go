@@ -2,7 +2,7 @@ package spop
 
 import (
 	"context"
-	"github.com/fionera/haproxy-go/pkg/encoding"
+	"github.com/dropmorepackets/haproxy-go/pkg/encoding"
 )
 
 type Handler interface {

@@ -1,4 +1,4 @@
-module github.com/fionera/haproxy-go
+module github.com/dropmorepackets/haproxy-go
 
 go 1.21
 

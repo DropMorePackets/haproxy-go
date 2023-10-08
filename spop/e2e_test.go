@@ -5,8 +5,8 @@ package spop
 import (
 	"context"
 	"fmt"
-	"github.com/fionera/haproxy-go/pkg/encoding"
-	"github.com/fionera/haproxy-go/pkg/testutil"
+	"github.com/dropmorepackets/haproxy-go/pkg/encoding"
+	"github.com/dropmorepackets/haproxy-go/pkg/testutil"
 	"net/http"
 	"testing"
 	"time"
