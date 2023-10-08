@@ -1,9 +1,10 @@
 package spop
 
 import (
-	"github.com/dropmorepackets/haproxy-go/pkg/encoding"
 	"io"
 	"strings"
+
+	"github.com/dropmorepackets/haproxy-go/pkg/encoding"
 )
 
 type frameFlag uint32

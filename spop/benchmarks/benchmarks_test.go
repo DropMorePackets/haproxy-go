@@ -5,8 +5,9 @@ import (
 	"testing"
 
 	criteo "github.com/criteo/haproxy-spoe-go"
-	"github.com/dropmorepackets/haproxy-go/pkg/encoding"
 	"github.com/negasus/haproxy-spoe-go/message"
+
+	"github.com/dropmorepackets/haproxy-go/pkg/encoding"
 )
 
 var (

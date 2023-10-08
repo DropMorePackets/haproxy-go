@@ -2,6 +2,7 @@ package spop
 
 import (
 	"context"
+
 	"github.com/dropmorepackets/haproxy-go/pkg/encoding"
 )
 

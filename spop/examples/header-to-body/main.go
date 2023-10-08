@@ -2,11 +2,12 @@ package main
 
 import (
 	"context"
-	"github.com/dropmorepackets/haproxy-go/pkg/encoding"
-	"github.com/dropmorepackets/haproxy-go/spop"
 	"log"
 	"net/http"
 	_ "net/http/pprof"
+
+	"github.com/dropmorepackets/haproxy-go/pkg/encoding"
+	"github.com/dropmorepackets/haproxy-go/spop"
 )
 
 func main() {

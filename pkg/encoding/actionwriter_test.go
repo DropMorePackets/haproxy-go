@@ -2,8 +2,9 @@ package encoding
 
 import (
 	"fmt"
-	"github.com/dropmorepackets/haproxy-go/pkg/testutil"
 	"testing"
+
+	"github.com/dropmorepackets/haproxy-go/pkg/testutil"
 )
 
 func TestActionWriter(t *testing.T) {

@@ -5,11 +5,12 @@ package spop
 import (
 	"context"
 	"fmt"
-	"github.com/dropmorepackets/haproxy-go/pkg/encoding"
-	"github.com/dropmorepackets/haproxy-go/pkg/testutil"
 	"net/http"
 	"testing"
 	"time"
+
+	"github.com/dropmorepackets/haproxy-go/pkg/encoding"
+	"github.com/dropmorepackets/haproxy-go/pkg/testutil"
 )
 
 func TestE2E(t *testing.T) {

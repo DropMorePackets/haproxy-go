@@ -3,13 +3,14 @@ package spop
 import (
 	"context"
 	"encoding/binary"
-	"github.com/dropmorepackets/haproxy-go/pkg/encoding"
-	"github.com/dropmorepackets/haproxy-go/pkg/testutil"
 	"io"
 	"log"
 	"math/rand"
 	"testing"
 	"time"
+
+	"github.com/dropmorepackets/haproxy-go/pkg/encoding"
+	"github.com/dropmorepackets/haproxy-go/pkg/testutil"
 )
 
 func TestFakeCon(t *testing.T) {

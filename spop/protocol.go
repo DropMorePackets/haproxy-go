@@ -4,11 +4,13 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"github.com/adrianbrad/queue"
-	"github.com/dropmorepackets/haproxy-go/pkg/encoding"
 	"io"
 	"log"
 	"runtime"
+
+	"github.com/adrianbrad/queue"
+
+	"github.com/dropmorepackets/haproxy-go/pkg/encoding"
 )
 
 type asyncScheduler struct {

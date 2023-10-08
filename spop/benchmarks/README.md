@@ -10,9 +10,11 @@ https://github.com/babiel/haproxy-spoe-go
 Tested and compared via benchstat (thx to https://www.rodolfocarvalho.net/blog/go-test-bench-pipe-to-benchstat/)
 
     go test -run='^$' -bench=. -benchmem -count=5 | tee >(benchstat /dev/stdin)
+
 ---
 
 MacBookPro18,4 with M1 Max:
+
 ```
 goos: darwin
 goarch: arm64
@@ -63,7 +65,9 @@ geomean                ²
 ¹ need >= 6 samples for confidence interval at level 0.95
 ² summaries must be >0 to compute geomean
 ```
+
 ---
+
 ```
 goos: linux
 goarch: amd64

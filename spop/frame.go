@@ -3,9 +3,10 @@ package spop
 import (
 	"encoding/binary"
 	"fmt"
-	"github.com/dropmorepackets/haproxy-go/pkg/buffer"
 	"io"
 	"sync"
+
+	"github.com/dropmorepackets/haproxy-go/pkg/buffer"
 
 	"github.com/dropmorepackets/haproxy-go/pkg/encoding"
 )
