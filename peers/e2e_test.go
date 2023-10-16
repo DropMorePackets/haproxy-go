@@ -7,15 +7,17 @@ import (
 	"log"
 	"net/http"
 	"testing"
+	"time"
 
+	"github.com/dropmorepackets/haproxy-go/peers/sticktable"
 	"github.com/dropmorepackets/haproxy-go/pkg/testutil"
 )
 
 func TestE2E(t *testing.T) {
-	var success bool
-	a := Peer{Handler: HandlerFunc(func(u *EntryUpdate) {
-		success = true
+	success := make(chan bool)
+	a := Peer{Handler: HandlerFunc(func(u *sticktable.EntryUpdate) {
 		log.Println(u)
+		success <- true
 	})}
 
 	// create the listener synchronously to prevent a race
@@ -31,7 +33,7 @@ func TestE2E(t *testing.T) {
 `,
 		CustomConfig: `
 backend st_be_name
-    stick-table  type string  size 1m  expire 10m  store http_req_rate(10s) peers mypeers
+    stick-table type string size 1m expire 10m  store http_req_rate(10s) peers mypeers
 
 backend st_src_global
 	stick-table type ip size 1m expire 10m store http_req_rate(10s),conn_rate(10s),bytes_in_rate(10s) peers mypeers
@@ -47,8 +49,15 @@ backend st_src_global
 			}
 		}
 
-		if !success {
-			t.Fail()
+		tm := time.NewTimer(1 * time.Second)
+		defer tm.Stop()
+		select {
+		case v := <-success:
+			if !v {
+				t.Fail()
+			}
+		case <-tm.C:
+			t.Error("timeout")
 		}
 	}))
 }
