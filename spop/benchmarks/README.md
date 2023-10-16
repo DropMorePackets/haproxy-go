@@ -13,111 +13,68 @@ Tested and compared via benchstat (thx to https://www.rodolfocarvalho.net/blog/g
 
 ---
 
-MacBookPro18,4 with M1 Max:
-
-```
-goos: darwin
-goarch: arm64
-pkg: github.com/fionera/haproxy-go/spop/benchmarks
-BenchmarkCriteo-10      11582493               118.7 ns/op           264 B/op         12 allocs/op
-BenchmarkCriteo-10      10842691               114.7 ns/op           263 B/op         12 allocs/op
-BenchmarkCriteo-10      10350162               112.8 ns/op           263 B/op         12 allocs/op
-BenchmarkCriteo-10      10490358               111.8 ns/op           264 B/op         12 allocs/op
-BenchmarkCriteo-10       9671280               123.9 ns/op           264 B/op         12 allocs/op
-BenchmarkNegasus-10      3686066               337.9 ns/op           752 B/op         18 allocs/op
-BenchmarkNegasus-10      3627370               343.7 ns/op           752 B/op         18 allocs/op
-BenchmarkNegasus-10      3602414               336.8 ns/op           752 B/op         18 allocs/op
-BenchmarkNegasus-10      3396264               351.0 ns/op           752 B/op         18 allocs/op
-BenchmarkNegasus-10      3401060               348.7 ns/op           752 B/op         18 allocs/op
-BenchmarkFionera-10     68821312                27.22 ns/op            0 B/op          0 allocs/op
-BenchmarkFionera-10     59779068                22.84 ns/op            0 B/op          0 allocs/op
-BenchmarkFionera-10     65963814                22.08 ns/op            0 B/op          0 allocs/op
-BenchmarkFionera-10     89442937                31.96 ns/op            0 B/op          0 allocs/op
-BenchmarkFionera-10     88215834                18.13 ns/op            0 B/op          0 allocs/op
-PASS
-ok      github.com/fionera/haproxy-go/spop/benchmarks   23.882s
-goos: darwin
-goarch: arm64
-pkg: github.com/fionera/haproxy-go/spop/benchmarks
-           │  /dev/stdin  │
-           │    sec/op    │
-Criteo-10    114.7n ± ∞ ¹
-Negasus-10   343.7n ± ∞ ¹
-Fionera-10   22.84n ± ∞ ¹
-geomean      96.56n
-¹ need >= 6 samples for confidence interval at level 0.95
-
-           │ /dev/stdin  │
-           │    B/op     │
-Criteo-10    264.0 ± ∞ ¹
-Negasus-10   752.0 ± ∞ ¹
-Fionera-10   0.000 ± ∞ ¹
-geomean                ²
-¹ need >= 6 samples for confidence interval at level 0.95
-² summaries must be >0 to compute geomean
-
-           │ /dev/stdin  │
-           │  allocs/op  │
-Criteo-10    12.00 ± ∞ ¹
-Negasus-10   18.00 ± ∞ ¹
-Fionera-10   0.000 ± ∞ ¹
-geomean                ²
-¹ need >= 6 samples for confidence interval at level 0.95
-² summaries must be >0 to compute geomean
-```
-
----
-
 ```
 goos: linux
 goarch: amd64
-pkg: github.com/fionera/haproxy-go/spop/benchmarks
+pkg: github.com/dropmorepackets/haproxy-go/spop/benchmarks
 cpu: AMD EPYC 7502P 32-Core Processor
-BenchmarkCriteo-48     	 5710826	       253.1 ns/op	     263 B/op	      12 allocs/op
-BenchmarkCriteo-48     	 4294416	       265.9 ns/op	     263 B/op	      12 allocs/op
-BenchmarkCriteo-48     	 4285262	       280.6 ns/op	     263 B/op	      12 allocs/op
-BenchmarkCriteo-48     	 4314597	       274.8 ns/op	     263 B/op	      12 allocs/op
-BenchmarkCriteo-48     	 4190436	       290.9 ns/op	     263 B/op	      12 allocs/op
-BenchmarkNegasus-48    	 1235547	       900.0 ns/op	     756 B/op	      18 allocs/op
-BenchmarkNegasus-48    	 1693122	       688.2 ns/op	     755 B/op	      18 allocs/op
-BenchmarkNegasus-48    	 1723869	       692.1 ns/op	     755 B/op	      18 allocs/op
-BenchmarkNegasus-48    	 1751373	       719.4 ns/op	     755 B/op	      18 allocs/op
-BenchmarkNegasus-48    	 1700374	       663.0 ns/op	     755 B/op	      18 allocs/op
-BenchmarkFionera-48    	111115724	        10.79 ns/op	       0 B/op	       0 allocs/op
-BenchmarkFionera-48    	127499919	         9.095 ns/op	       0 B/op	       0 allocs/op
-BenchmarkFionera-48    	97899013	        10.25 ns/op	       0 B/op	       0 allocs/op
-BenchmarkFionera-48    	146508001	         9.690 ns/op	       0 B/op	       0 allocs/op
-BenchmarkFionera-48    	124598562	        11.72 ns/op	       0 B/op	       0 allocs/op
+BenchmarkCriteo-48             	 5874009	       245.8 ns/op	     263 B/op	      12 allocs/op
+BenchmarkCriteo-48             	 4504574	       266.3 ns/op	     263 B/op	      12 allocs/op
+BenchmarkCriteo-48             	 4511300	       272.8 ns/op	     263 B/op	      12 allocs/op
+BenchmarkCriteo-48             	 4336767	       279.2 ns/op	     263 B/op	      12 allocs/op
+BenchmarkCriteo-48             	 4241575	       267.2 ns/op	     263 B/op	      12 allocs/op
+BenchmarkCriteo-48             	 4719711	       274.6 ns/op	     263 B/op	      12 allocs/op
+BenchmarkCriteo-48             	 4419110	       255.4 ns/op	     263 B/op	      12 allocs/op
+BenchmarkCriteo-48             	 5013790	       270.8 ns/op	     263 B/op	      12 allocs/op
+BenchmarkCriteo-48             	 4283295	       267.7 ns/op	     263 B/op	      12 allocs/op
+BenchmarkCriteo-48             	 4446008	       270.4 ns/op	     263 B/op	      12 allocs/op
+BenchmarkNegasus-48            	 1668440	       725.3 ns/op	     755 B/op	      18 allocs/op
+BenchmarkNegasus-48            	 1583863	       763.6 ns/op	     755 B/op	      18 allocs/op
+BenchmarkNegasus-48            	 1592184	       730.7 ns/op	     755 B/op	      18 allocs/op
+BenchmarkNegasus-48            	 1579813	       755.2 ns/op	     755 B/op	      18 allocs/op
+BenchmarkNegasus-48            	 1626435	       731.5 ns/op	     755 B/op	      18 allocs/op
+BenchmarkNegasus-48            	 1656385	       751.8 ns/op	     755 B/op	      18 allocs/op
+BenchmarkNegasus-48            	 1610750	       735.7 ns/op	     755 B/op	      18 allocs/op
+BenchmarkNegasus-48            	 1632219	       750.6 ns/op	     755 B/op	      18 allocs/op
+BenchmarkNegasus-48            	 1685029	       709.3 ns/op	     755 B/op	      18 allocs/op
+BenchmarkNegasus-48            	 1649761	       730.2 ns/op	     755 B/op	      18 allocs/op
+BenchmarkDropMorePackets-48    	120675940	        10.50 ns/op	       0 B/op	       0 allocs/op
+BenchmarkDropMorePackets-48    	93222517	        16.45 ns/op	       0 B/op	       0 allocs/op
+BenchmarkDropMorePackets-48    	100000000	        14.19 ns/op	       0 B/op	       0 allocs/op
+BenchmarkDropMorePackets-48    	93988230	        11.41 ns/op	       0 B/op	       0 allocs/op
+BenchmarkDropMorePackets-48    	97593783	        13.23 ns/op	       0 B/op	       0 allocs/op
+BenchmarkDropMorePackets-48    	79098175	        16.19 ns/op	       0 B/op	       0 allocs/op
+BenchmarkDropMorePackets-48    	95429886	        13.68 ns/op	       0 B/op	       0 allocs/op
+BenchmarkDropMorePackets-48    	119408089	        13.65 ns/op	       0 B/op	       0 allocs/op
+BenchmarkDropMorePackets-48    	80430522	        17.22 ns/op	       0 B/op	       0 allocs/op
+BenchmarkDropMorePackets-48    	111808652	        11.97 ns/op	       0 B/op	       0 allocs/op
 PASS
-ok  	github.com/fionera/haproxy-go/spop/benchmarks	27.312s
+ok  	github.com/dropmorepackets/haproxy-go/spop/benchmarks	51.642s
 goos: linux
 goarch: amd64
-pkg: github.com/fionera/haproxy-go/spop/benchmarks
+pkg: github.com/dropmorepackets/haproxy-go/spop/benchmarks
 cpu: AMD EPYC 7502P 32-Core Processor
-           │  /dev/stdin  │
-           │    sec/op    │
-Criteo-48    274.8n ± ∞ ¹
-Negasus-48   692.1n ± ∞ ¹
-Fionera-48   10.25n ± ∞ ¹
-geomean      124.9n
-¹ need >= 6 samples for confidence interval at level 0.95
+                   │  /dev/stdin  │
+                   │    sec/op    │
+Criteo-48            269.0n ±  5%
+Negasus-48           733.6n ±  3%
+DropMorePackets-48   13.66n ± 20%
+geomean              139.2n
 
-           │ /dev/stdin  │
-           │    B/op     │
-Criteo-48    263.0 ± ∞ ¹
-Negasus-48   755.0 ± ∞ ¹
-Fionera-48   0.000 ± ∞ ¹
-geomean                ²
-¹ need >= 6 samples for confidence interval at level 0.95
-² summaries must be >0 to compute geomean
+                   │  /dev/stdin  │
+                   │     B/op     │
+Criteo-48            263.0 ± 0%
+Negasus-48           755.0 ± 0%
+DropMorePackets-48   0.000 ± 0%
+geomean                         ¹
+¹ summaries must be >0 to compute geomean
 
-           │ /dev/stdin  │
-           │  allocs/op  │
-Criteo-48    12.00 ± ∞ ¹
-Negasus-48   18.00 ± ∞ ¹
-Fionera-48   0.000 ± ∞ ¹
-geomean                ²
-¹ need >= 6 samples for confidence interval at level 0.95
-² summaries must be >0 to compute geomean
+                   │  /dev/stdin  │
+                   │  allocs/op   │
+Criteo-48            12.00 ± 0%
+Negasus-48           18.00 ± 0%
+DropMorePackets-48   0.000 ± 0%
+geomean                         ¹
+¹ summaries must be >0 to compute geomean
 ```
 
