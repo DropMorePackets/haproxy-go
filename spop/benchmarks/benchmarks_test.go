@@ -32,7 +32,7 @@ func (d *Dispatcher) ServeCriteo(messages *criteo.MessageIterator) ([]criteo.Act
 	return nil, nil
 }
 
-func (d *Dispatcher) Servedropmorepackets(w *encoding.ActionWriter, m *encoding.Message) {
+func (d *Dispatcher) ServeDropMorePacket(w *encoding.ActionWriter, m *encoding.Message) {
 	k := encoding.AcquireKVEntry()
 	defer encoding.ReleaseKVEntry(k)
 
@@ -78,7 +78,7 @@ func BenchmarkNegasus(b *testing.B) {
 	})
 }
 
-func Benchmarkdropmorepackets(b *testing.B) {
+func BenchmarkDropMorePackets(b *testing.B) {
 	b.RunParallel(func(pb *testing.PB) {
 		// I am unfair against myself as these structures aren't always
 		// reacquired, but let's do it anyway.
@@ -89,7 +89,7 @@ func Benchmarkdropmorepackets(b *testing.B) {
 			s := encoding.AcquireMessageScanner(msgInput)
 
 			for s.Next(m) {
-				dis.Servedropmorepackets(w, m)
+				dis.ServeDropMorePacket(w, m)
 			}
 
 			if err := s.Error(); err != nil {
