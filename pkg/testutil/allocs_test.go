@@ -13,5 +13,6 @@ func TestAllocTests(t *testing.T) {
 	t.Run("with allocation", WithNAllocations(1, func(t *testing.T) {
 		v := make([]byte, 10)
 		v = append(v, 1)
+		_ = v
 	}))
 }
