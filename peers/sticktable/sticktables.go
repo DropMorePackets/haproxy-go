@@ -1,4 +1,4 @@
-package peers
+package sticktable
 
 import (
 	"bufio"
@@ -9,22 +9,22 @@ import (
 	"github.com/dropmorepackets/haproxy-go/pkg/encoding"
 )
 
-type StickTableDataTypeDefinition struct {
-	DataType StickTableDataType
+type DataTypeDefinition struct {
+	DataType DataType
 	Counter  int64
 	Period   int64
 }
 
-type StickTableDefinition struct {
+type Definition struct {
 	StickTableID int64
 	Name         string
-	KeyType      StickTableKeyType
+	KeyType      KeyType
 	KeyLength    int64
-	DataTypes    []StickTableDataTypeDefinition
+	DataTypes    []DataTypeDefinition
 	Expiry       int64
 }
 
-func (s *StickTableDefinition) Unmarshal(r *bufio.Reader) error {
+func (s *Definition) Unmarshal(r *bufio.Reader) error {
 	// We don't need the Message length
 	_, err := encoding.ReadVarint(r)
 	if err != nil {
@@ -52,7 +52,7 @@ func (s *StickTableDefinition) Unmarshal(r *bufio.Reader) error {
 	if err != nil {
 		return err
 	}
-	s.KeyType = StickTableKeyType(keyType)
+	s.KeyType = KeyType(keyType)
 
 	keyLength, err := encoding.ReadVarint(r)
 	if err != nil {
@@ -71,14 +71,14 @@ func (s *StickTableDefinition) Unmarshal(r *bufio.Reader) error {
 	}
 	s.Expiry = expiry
 
-	for dataType := range StickTableDataTypes {
+	for dataType := range DataTypes {
 		if (dataTypes>>dataType)&1 == 1 {
 
-			d := StickTableDataTypeDefinition{
+			d := DataTypeDefinition{
 				DataType: dataType,
 			}
 
-			info, ok := StickTableDataTypes[dataType]
+			info, ok := DataTypes[dataType]
 			if !ok {
 				return fmt.Errorf("unknown data type: %v", dataType)
 			}
@@ -104,9 +104,9 @@ func (s *StickTableDefinition) Unmarshal(r *bufio.Reader) error {
 }
 
 type EntryUpdate struct {
-	StickTable        *StickTableDefinition
-	withLocalUpdateID bool
-	withExpiry        bool
+	StickTable        *Definition
+	WithLocalUpdateID bool
+	WithExpiry        bool
 
 	LocalUpdateID uint32
 	Key           MapKey
@@ -118,7 +118,7 @@ func (e *EntryUpdate) String() string {
 	var data []string
 	for i, d := range e.Data {
 		dt := e.StickTable.DataTypes[i].DataType
-		name := StickTableDataTypes[dt].Name
+		name := DataTypes[dt].Name
 		data = append(data, fmt.Sprintf("%s: %s", name, d.String()))
 	}
 
@@ -134,7 +134,7 @@ func (e *EntryUpdate) Unmarshal(r *bufio.Reader) error {
 
 	// We already have a correct update ID loaded from the caller,
 	// so we just override it when the message has its own
-	if e.withLocalUpdateID {
+	if e.WithLocalUpdateID {
 		localUpdateID := make([]byte, 4)
 		if _, err := r.Read(localUpdateID); err != nil {
 			return err
@@ -142,7 +142,7 @@ func (e *EntryUpdate) Unmarshal(r *bufio.Reader) error {
 		e.LocalUpdateID = binary.BigEndian.Uint32(localUpdateID)
 	}
 
-	if e.withExpiry {
+	if e.WithExpiry {
 		expiry := make([]byte, 4)
 		if _, err := r.Read(expiry); err != nil {
 			return err
@@ -150,7 +150,7 @@ func (e *EntryUpdate) Unmarshal(r *bufio.Reader) error {
 		e.Expiry = binary.BigEndian.Uint32(expiry)
 	}
 
-	New, ok := StickTableKeyTypes[e.StickTable.KeyType]
+	New, ok := KeyTypes[e.StickTable.KeyType]
 	if !ok {
 		return fmt.Errorf("unknown key type: %v", e.StickTable.KeyType)
 	}
@@ -162,7 +162,7 @@ func (e *EntryUpdate) Unmarshal(r *bufio.Reader) error {
 	e.Key = key
 
 	for _, dataType := range e.StickTable.DataTypes {
-		info, ok := StickTableDataTypes[dataType.DataType]
+		info, ok := DataTypes[dataType.DataType]
 		if !ok {
 			return fmt.Errorf("unknown data type: %v", dataType)
 		}

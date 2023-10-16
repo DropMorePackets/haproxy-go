@@ -8,12 +8,13 @@ import (
 	"net/http"
 	"testing"
 
+	"github.com/dropmorepackets/haproxy-go/peers/sticktable"
 	"github.com/dropmorepackets/haproxy-go/pkg/testutil"
 )
 
 func TestE2E(t *testing.T) {
 	var success bool
-	a := Peer{Handler: HandlerFunc(func(u *EntryUpdate) {
+	a := Peer{Handler: HandlerFunc(func(u *sticktable.EntryUpdate) {
 		success = true
 		log.Println(u)
 	})}

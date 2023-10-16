@@ -4,6 +4,8 @@ import (
 	"bufio"
 	"fmt"
 	"net"
+
+	"github.com/dropmorepackets/haproxy-go/peers/sticktable"
 )
 
 type Peer struct {
@@ -12,12 +14,12 @@ type Peer struct {
 }
 
 type Handler interface {
-	Update(*EntryUpdate)
+	Update(*sticktable.EntryUpdate)
 }
 
-type HandlerFunc func(*EntryUpdate)
+type HandlerFunc func(*sticktable.EntryUpdate)
 
-func (h HandlerFunc) Update(u *EntryUpdate) {
+func (h HandlerFunc) Update(u *sticktable.EntryUpdate) {
 	h(u)
 }
 

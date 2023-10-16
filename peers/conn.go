@@ -9,6 +9,8 @@ import (
 	"net"
 	"syscall"
 	"time"
+
+	"github.com/dropmorepackets/haproxy-go/peers/sticktable"
 )
 
 type Conn struct {
@@ -16,8 +18,8 @@ type Conn struct {
 	r                   *bufio.Reader
 	nextHeartbeat       *time.Ticker
 	lastMessageTimer    *time.Timer
-	lastTableDefinition *StickTableDefinition
-	lastEntryUpdate     *EntryUpdate
+	lastTableDefinition *sticktable.Definition
+	lastEntryUpdate     *sticktable.EntryUpdate
 
 	handler Handler
 }
@@ -107,7 +109,7 @@ func (c *Conn) Read() error {
 		return c.errorMessage(ErrorMessageType(header[1]))
 	case MessageClassStickTableUpdates:
 		unknownBuf = unknownBuf[:0]
-		return c.stickTableUpdate(StickTableMessageType(header[1]))
+		return c.stickTableUpdate(sticktable.MessageType(header[1]))
 	default:
 		unknownBuf = append(unknownBuf, header...)
 		return fmt.Errorf("unknown message class: %s", m)
@@ -132,10 +134,10 @@ func (c *Conn) controlMessage(t ControlMessageType) error {
 	return fmt.Errorf("unknown control message type: %s", t)
 }
 
-func (c *Conn) stickTableUpdate(t StickTableMessageType) error {
+func (c *Conn) stickTableUpdate(t sticktable.MessageType) error {
 	switch t {
-	case StickTableMessageStickTableDefinition:
-		var std StickTableDefinition
+	case sticktable.MessageStickTableDefinition:
+		var std sticktable.Definition
 		if err := std.Unmarshal(c.r); err != nil {
 			return err
 		}
@@ -145,16 +147,16 @@ func (c *Conn) stickTableUpdate(t StickTableMessageType) error {
 		//log.Printf("%+v", std)
 
 		return nil
-	case StickTableMessageStickTableSwitch:
+	case sticktable.MessageStickTableSwitch:
 		panic(t)
 		return nil
-	case StickTableMessageUpdateAcknowledge:
+	case sticktable.MessageUpdateAcknowledge:
 		panic(t)
 		return nil
-	case StickTableMessageEntryUpdate,
-		StickTableMessageUpdateTimed,
-		StickTableMessageIncrementalEntryUpdate,
-		StickTableMessageIncrementalEntryUpdateTimed:
+	case sticktable.MessageEntryUpdate,
+		sticktable.MessageUpdateTimed,
+		sticktable.MessageIncrementalEntryUpdate,
+		sticktable.MessageIncrementalEntryUpdateTimed:
 		return c.stickTableEntryUpdate(t)
 		// Just continue to the next switch statement
 	default:
@@ -164,8 +166,8 @@ func (c *Conn) stickTableUpdate(t StickTableMessageType) error {
 	return nil
 }
 
-func (c *Conn) stickTableEntryUpdate(t StickTableMessageType) error {
-	e := EntryUpdate{
+func (c *Conn) stickTableEntryUpdate(t sticktable.MessageType) error {
+	e := sticktable.EntryUpdate{
 		StickTable: c.lastTableDefinition,
 	}
 
@@ -174,14 +176,14 @@ func (c *Conn) stickTableEntryUpdate(t StickTableMessageType) error {
 	}
 
 	switch t {
-	case StickTableMessageEntryUpdate:
-		e.withLocalUpdateID = true
-	case StickTableMessageUpdateTimed:
-		e.withLocalUpdateID = true
-		e.withExpiry = true
-	case StickTableMessageIncrementalEntryUpdate:
-	case StickTableMessageIncrementalEntryUpdateTimed:
-		e.withExpiry = true
+	case sticktable.MessageEntryUpdate:
+		e.WithLocalUpdateID = true
+	case sticktable.MessageUpdateTimed:
+		e.WithLocalUpdateID = true
+		e.WithExpiry = true
+	case sticktable.MessageIncrementalEntryUpdate:
+	case sticktable.MessageIncrementalEntryUpdateTimed:
+		e.WithExpiry = true
 	}
 
 	if err := e.Unmarshal(c.r); err != nil {
