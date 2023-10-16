@@ -26,7 +26,7 @@ func main() {
 	err := peers.ListenAndServe(":21000", peers.HandlerFunc(func(update *peers.EntryUpdate) {
 		for i, d := range update.Data {
 			dt := update.StickTable.DataTypes[i].DataType
-			name := peers.StickTableDataTypes[dt].Name
+			name := peers.DataTypes[dt].Name
 			switch d := d.(type) {
 			case *peers.FreqData:
 				metric.WithLabelValues(update.StickTable.Name, name, update.Key.String()).Set(float64(d.LastPeriod))

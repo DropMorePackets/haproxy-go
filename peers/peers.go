@@ -2,55 +2,63 @@ package peers
 
 import (
 	"bufio"
+	"context"
 	"fmt"
+	"log"
 	"net"
 )
 
 type Peer struct {
-	Addr    string
-	Handler Handler
+	Addr        string
+	Handler     Handler
+	BaseContext context.Context
 }
 
-type Handler interface {
-	Update(*EntryUpdate)
-}
-
-type HandlerFunc func(*EntryUpdate)
-
-func (h HandlerFunc) Update(u *EntryUpdate) {
-	h(u)
-}
-
-func ListenAndServe(addr string, h Handler) error {
-	a := Peer{Addr: addr, Handler: h}
+func ListenAndServe(addr string, handler Handler) error {
+	a := Peer{Addr: addr, Handler: handler}
 	return a.ListenAndServe()
 }
 
-func (p *Peer) ListenAndServe() error {
-	l, err := net.Listen("tcp", p.Addr)
+func (a *Peer) ListenAndServe() error {
+	l, err := net.Listen("tcp", a.Addr)
 	if err != nil {
 		return fmt.Errorf("opening listener: %w", err)
 	}
 	defer l.Close()
 
-	return p.Serve(l)
+	return a.Serve(l)
 }
 
-func (p *Peer) Serve(l net.Listener) error {
-	p.Addr = l.Addr().String()
+func (a *Peer) Serve(l net.Listener) error {
+	a.Addr = l.Addr().String()
+	if a.BaseContext == nil {
+		a.BaseContext = context.Background()
+	}
+
+	go func() {
+		<-a.BaseContext.Done()
+		l.Close()
+	}()
 
 	for {
-		c, err := l.Accept()
+		nc, err := l.Accept()
 		if err != nil {
 			return fmt.Errorf("accepting conn: %w", err)
 		}
 
 		conn := &Conn{
-			conn:    c,
-			r:       bufio.NewReader(c),
-			handler: p.Handler,
+			ctx:     a.BaseContext,
+			conn:    nc,
+			r:       bufio.NewReader(nc),
+			handler: a.Handler,
 		}
 
-		go conn.serve()
+		go func() {
+			defer nc.Close()
+
+			if err := conn.Serve(); err != nil && err != conn.ctx.Err() {
+				log.Println(err)
+			}
+		}()
 	}
 }
