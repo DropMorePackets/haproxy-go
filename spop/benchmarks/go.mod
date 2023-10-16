@@ -1,6 +1,6 @@
 module github.com/dropmorepackets/haproxy-go/spop/benchmarks
 
-go 1.21.0
+go 1.21
 
 replace github.com/dropmorepackets/haproxy-go => ../../
 
@@ -17,6 +17,6 @@ require (
 	github.com/libp2p/go-buffer-pool v0.0.2 // indirect
 	github.com/pkg/errors v0.9.1 // indirect
 	github.com/sirupsen/logrus v1.7.0 // indirect
-	golang.org/x/net v0.0.0-20201224014010-6772e930b67b // indirect
-	golang.org/x/sys v0.11.0 // indirect
+	golang.org/x/net v0.16.0 // indirect
+	golang.org/x/sys v0.13.0 // indirect
 )
