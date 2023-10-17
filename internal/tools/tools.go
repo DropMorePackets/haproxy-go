@@ -1,6 +1,6 @@
 //go:build tools
 
-package haproxy_go
+package tools
 
 import (
 	_ "golang.org/x/tools/cmd/stringer"
