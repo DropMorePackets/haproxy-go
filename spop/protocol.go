@@ -97,6 +97,10 @@ func (c *protocolClient) Serve() error {
 	for {
 		f := acquireFrame()
 		if _, err := f.ReadFrom(c.rw); err != nil {
+			if c.ctx.Err() != nil {
+				return c.ctx.Err()
+			}
+
 			if errors.Is(err, io.EOF) {
 				return nil
 			}
@@ -140,7 +144,10 @@ func (c *protocolClient) onHAProxyHello(f *frame) error {
 			c.engineID = string(k.ValueBytes())
 			//case k.NameEquals(helloKeySupportedVersions):
 			//case k.NameEquals(helloKeyCapabilities):
-			//case k.NameEquals(helloKeyHealthcheck):
+		case k.NameEquals(helloKeyHealthcheck):
+			// as described in the protocol, close connection after hello
+			// AGENT-HELLO + close()
+			defer c.ctxCancel()
 		}
 	}
 

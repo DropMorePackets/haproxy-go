@@ -50,7 +50,7 @@ func (a *Agent) Serve(l net.Listener) error {
 			defer nc.Close()
 			defer p.Close()
 
-			if err := p.Serve(); err != nil {
+			if err := p.Serve(); err != nil && err != p.ctx.Err() {
 				log.Println(err)
 			}
 		}()
