@@ -3,7 +3,6 @@ module github.com/dropmorepackets/haproxy-go
 go 1.21
 
 require (
-	github.com/adrianbrad/queue v1.2.1
 	golang.org/x/tools v0.14.0
 	honnef.co/go/tools v0.4.6
 )
