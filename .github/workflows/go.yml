@@ -42,7 +42,9 @@ jobs:
 
       - name: Run go generate
         run: |
+          cd internal/tools
           go install golang.org/x/tools/cmd/stringer
+          cd ../..
           
           go generate ./...
           git diff --exit-code || (echo "Generated files have changed. Please run 'go generate' and commit the changes." && exit 1)
