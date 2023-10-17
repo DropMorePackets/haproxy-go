@@ -5,46 +5,10 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"log"
 	"runtime"
-
-	"github.com/adrianbrad/queue"
 
 	"github.com/dropmorepackets/haproxy-go/pkg/encoding"
 )
-
-type asyncScheduler struct {
-	// TODO: replace with a circular blocking queue
-	q  *queue.Blocking[*frame]
-	pc *protocolClient
-}
-
-func newAsyncScheduler(pc *protocolClient) *asyncScheduler {
-	a := asyncScheduler{
-		q:  queue.NewBlocking[*frame](nil, queue.WithCapacity(runtime.NumCPU()*2)),
-		pc: pc,
-	}
-
-	for i := 0; i < runtime.NumCPU(); i++ {
-		go a.queueWorker()
-	}
-
-	return &a
-}
-
-func (a *asyncScheduler) queueWorker() {
-	for {
-		f := a.q.GetWait()
-		if err := a.pc.frameHandler(f); err != nil {
-			log.Println(err)
-			continue
-		}
-	}
-}
-
-func (a *asyncScheduler) schedule(f *frame) {
-	a.q.OfferWait(f)
-}
 
 func newProtocolClient(ctx context.Context, rw io.ReadWriter, handler Handler) *protocolClient {
 	var c protocolClient
@@ -142,8 +106,8 @@ func (c *protocolClient) onHAProxyHello(f *frame) error {
 		case k.NameEquals(helloKeyEngineID):
 			//TODO: This does copy the engine id but yolo?
 			c.engineID = string(k.ValueBytes())
-			//case k.NameEquals(helloKeySupportedVersions):
-			//case k.NameEquals(helloKeyCapabilities):
+		//case k.NameEquals(helloKeySupportedVersions):
+		//case k.NameEquals(helloKeyCapabilities):
 		case k.NameEquals(helloKeyHealthcheck):
 			// as described in the protocol, close connection after hello
 			// AGENT-HELLO + close()
