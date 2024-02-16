@@ -1,7 +1,6 @@
 package peers
 
 import (
-	"bufio"
 	"context"
 	"fmt"
 	"log"
@@ -9,9 +8,10 @@ import (
 )
 
 type Peer struct {
-	Addr        string
-	Handler     Handler
-	BaseContext context.Context
+	Addr          string
+	Handler       Handler
+	HandlerSource func() Handler
+	BaseContext   context.Context
 }
 
 func ListenAndServe(addr string, handler Handler) error {
@@ -40,23 +40,28 @@ func (a *Peer) Serve(l net.Listener) error {
 		l.Close()
 	}()
 
+	if a.Handler != nil && a.HandlerSource != nil {
+		return fmt.Errorf("cannot set Handler and HandlerSource at the same time")
+	}
+
+	if a.Handler != nil {
+		a.HandlerSource = func() Handler {
+			return a.Handler
+		}
+	}
+
 	for {
 		nc, err := l.Accept()
 		if err != nil {
 			return fmt.Errorf("accepting conn: %w", err)
 		}
 
-		conn := &Conn{
-			ctx:     a.BaseContext,
-			conn:    nc,
-			r:       bufio.NewReader(nc),
-			handler: a.Handler,
-		}
-
+		p := newProtocolClient(a.BaseContext, nc, a.HandlerSource())
 		go func() {
 			defer nc.Close()
+			defer p.Close()
 
-			if err := conn.Serve(); err != nil && err != conn.ctx.Err() {
+			if err := p.Serve(); err != nil && err != p.ctx.Err() {
 				log.Println(err)
 			}
 		}()

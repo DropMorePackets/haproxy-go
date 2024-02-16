@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"log"
 	"net/http"
 
@@ -24,7 +25,7 @@ func main() {
 
 	go http.ListenAndServe(":8081", promhttp.Handler())
 
-	err := peers.ListenAndServe(":21000", peers.HandlerFunc(func(update *sticktable.EntryUpdate) {
+	err := peers.ListenAndServe(":21000", peers.HandlerFunc(func(_ context.Context, update *sticktable.EntryUpdate) {
 		for i, d := range update.Data {
 			dt := update.StickTable.DataTypes[i].DataType
 			switch d := d.(type) {
