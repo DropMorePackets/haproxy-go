@@ -198,12 +198,18 @@ func (h *Handshake) ReadFrom(r io.Reader) (n int64, err error) {
 
 	scanner.Scan()
 	_, err = fmt.Sscanf(scanner.Text(), "%s %s", &h.ProtocolIdentifier, &h.Version)
+	if err != nil {
+		return -1, err
+	}
 
 	scanner.Scan()
 	h.RemotePeer = scanner.Text()
 
 	scanner.Scan()
 	_, err = fmt.Sscanf(scanner.Text(), "%s %d %d", &h.LocalPeerIdentifier, &h.ProcessID, &h.RelativeProcessID)
+	if err != nil {
+		return -1, err
+	}
 
 	//TODO: find out how many bytes where read.
 	return -1, scanner.Err()
