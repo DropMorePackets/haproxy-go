@@ -3,6 +3,7 @@
 package peers
 
 import (
+	"context"
 	"fmt"
 	"log"
 	"net/http"
@@ -15,7 +16,7 @@ import (
 
 func TestE2E(t *testing.T) {
 	success := make(chan bool)
-	a := Peer{Handler: HandlerFunc(func(u *sticktable.EntryUpdate) {
+	a := Peer{Handler: HandlerFunc(func(_ context.Context, u *sticktable.EntryUpdate) {
 		log.Println(u)
 		success <- true
 	})}

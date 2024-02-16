@@ -14,10 +14,11 @@ import (
 	"github.com/dropmorepackets/haproxy-go/pkg/encoding"
 )
 
-type Conn struct {
-	ctx  context.Context
-	conn net.Conn
-	r    *bufio.Reader
+type protocolClient struct {
+	ctx       context.Context
+	ctxCancel context.CancelFunc
+	rw        io.ReadWriter
+	br        *bufio.Reader
 
 	nextHeartbeat       *time.Ticker
 	lastMessageTimer    *time.Timer
@@ -27,24 +28,37 @@ type Conn struct {
 	handler Handler
 }
 
-func (c *Conn) Close() error {
-	return c.conn.Close()
+func newProtocolClient(ctx context.Context, rw io.ReadWriter, handler Handler) *protocolClient {
+	var c protocolClient
+	c.rw = rw
+	c.br = bufio.NewReader(rw)
+	c.handler = handler
+	c.ctx, c.ctxCancel = context.WithCancel(ctx)
+	return &c
 }
 
-func (c *Conn) peerHandshake() error {
+func (c *protocolClient) Close() error {
+	defer c.ctxCancel()
+
+	return c.handler.Close()
+}
+
+func (c *protocolClient) peerHandshake() error {
 	var h Handshake
-	if _, err := h.ReadFrom(c.r); err != nil {
+	if _, err := h.ReadFrom(c.br); err != nil {
 		return err
 	}
 
-	if _, err := c.conn.Write([]byte(fmt.Sprintf("%d\n", HandshakeStatusHandshakeSucceeded))); err != nil {
+	c.handler.HandleHandshake(c.ctx, &h)
+
+	if _, err := c.rw.Write([]byte(fmt.Sprintf("%d\n", HandshakeStatusHandshakeSucceeded))); err != nil {
 		return fmt.Errorf("handshake failed: %v", err)
 	}
 
 	return nil
 }
 
-func (c *Conn) resetHeartbeat() {
+func (c *protocolClient) resetHeartbeat() {
 	// a peer sends heartbeat messages to peers it is
 	// connected to after periods of 3s of inactivity (i.e. when there is no
 	// stick-table to synchronize for 3s).
@@ -56,7 +70,7 @@ func (c *Conn) resetHeartbeat() {
 	c.nextHeartbeat.Reset(time.Second * 3)
 }
 
-func (c *Conn) resetLastMessage() {
+func (c *protocolClient) resetLastMessage() {
 	// After a successful peer protocol handshake between two peers,
 	// if one of them does not send any other peer
 	// protocol messages (i.e. no heartbeat and no stick-table update messages)
@@ -71,9 +85,9 @@ func (c *Conn) resetLastMessage() {
 	c.lastMessageTimer.Reset(time.Second * 5)
 }
 
-func (c *Conn) heartbeat() {
+func (c *protocolClient) heartbeat() {
 	for range c.nextHeartbeat.C {
-		_, err := c.conn.Write([]byte{byte(MessageClassControl), byte(ControlMessageHeartbeat)})
+		_, err := c.rw.Write([]byte{byte(MessageClassControl), byte(ControlMessageHeartbeat)})
 		if err != nil {
 			_ = c.Close()
 			return
@@ -81,13 +95,13 @@ func (c *Conn) heartbeat() {
 	}
 }
 
-func (c *Conn) lastMessage() {
+func (c *protocolClient) lastMessage() {
 	<-c.lastMessageTimer.C
 	log.Println("last message timer expired: closing connection")
 	_ = c.Close()
 }
 
-func (c *Conn) Serve() error {
+func (c *protocolClient) Serve() error {
 	if err := c.peerHandshake(); err != nil {
 		return fmt.Errorf("handshake: %v", err)
 	}
@@ -100,7 +114,7 @@ func (c *Conn) Serve() error {
 	for {
 		var m rawMessage
 
-		if _, err := m.ReadFrom(c.r); err != nil {
+		if _, err := m.ReadFrom(c.br); err != nil {
 			if c.ctx.Err() != nil {
 				return c.ctx.Err()
 			}
@@ -119,7 +133,7 @@ func (c *Conn) Serve() error {
 	}
 }
 
-func (c *Conn) messageHandler(m *rawMessage) error {
+func (c *protocolClient) messageHandler(m *rawMessage) error {
 	switch m.MessageClass {
 	case MessageClassControl:
 		return ControlMessageType(m.MessageType).OnMessage(m, c)
@@ -213,4 +227,94 @@ func (h *Handshake) ReadFrom(r io.Reader) (n int64, err error) {
 
 	//TODO: find out how many bytes where read.
 	return -1, scanner.Err()
+}
+
+func (t ErrorMessageType) OnMessage(m *rawMessage, c *protocolClient) error {
+	switch t {
+	case ErrorMessageProtocol:
+		return fmt.Errorf("protocol error")
+	case ErrorMessageSizeLimit:
+		return fmt.Errorf("message size limit")
+	default:
+		return fmt.Errorf("unknown error message type: %s", t)
+	}
+}
+
+func (t ControlMessageType) OnMessage(m *rawMessage, c *protocolClient) error {
+	switch t {
+	case ControlMessageSyncRequest:
+		_, _ = c.rw.Write([]byte{byte(MessageClassControl), byte(ControlMessageSyncPartial)})
+		return nil
+	case ControlMessageSyncFinished:
+		return nil
+	case ControlMessageSyncPartial:
+		return nil
+	case ControlMessageSyncConfirmed:
+		return nil
+	case ControlMessageHeartbeat:
+		return nil
+	default:
+		return fmt.Errorf("unknown control message type: %s", t)
+	}
+}
+
+func (t StickTableUpdateMessageType) OnMessage(m *rawMessage, c *protocolClient) error {
+	switch t {
+	case StickTableUpdateMessageTypeStickTableDefinition:
+		var std sticktable.Definition
+		if _, err := std.Unmarshal(m.Data); err != nil {
+			return err
+		}
+		c.lastTableDefinition = &std
+
+		return nil
+	case StickTableUpdateMessageTypeStickTableSwitch:
+		log.Printf("not implemented: %s", t)
+		return nil
+	case StickTableUpdateMessageTypeUpdateAcknowledge:
+		log.Printf("not implemented: %s", t)
+		return nil
+	case StickTableUpdateMessageTypeEntryUpdate,
+		StickTableUpdateMessageTypeUpdateTimed,
+		StickTableUpdateMessageTypeIncrementalEntryUpdate,
+		StickTableUpdateMessageTypeIncrementalEntryUpdateTimed:
+		// All entry update messages are handled in a separate switch case
+		// following this one.
+		break
+	default:
+		return fmt.Errorf("unknown stick-table update message type: %s", t)
+	}
+
+	if c.lastTableDefinition == nil {
+		return fmt.Errorf("cannot process entry update without table definition")
+	}
+
+	e := sticktable.EntryUpdate{
+		StickTable: c.lastTableDefinition,
+	}
+
+	if c.lastEntryUpdate != nil {
+		e.LocalUpdateID = c.lastEntryUpdate.LocalUpdateID + 1
+	}
+
+	switch t {
+	case StickTableUpdateMessageTypeEntryUpdate:
+		e.WithLocalUpdateID = true
+	case StickTableUpdateMessageTypeUpdateTimed:
+		e.WithLocalUpdateID = true
+		e.WithExpiry = true
+	case StickTableUpdateMessageTypeIncrementalEntryUpdate:
+	case StickTableUpdateMessageTypeIncrementalEntryUpdateTimed:
+		e.WithExpiry = true
+	}
+
+	if _, err := e.Unmarshal(m.Data); err != nil {
+		return err
+	}
+
+	c.lastEntryUpdate = &e
+
+	c.handler.HandleUpdate(c.ctx, &e)
+
+	return nil
 }
