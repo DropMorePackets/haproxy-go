@@ -68,6 +68,7 @@ spoe-message e2e-res
 
 type HAProxyConfig struct {
 	EngineAddr           string
+	EngineConfig         string
 	FrontendPort         string
 	CustomFrontendConfig string
 	CustomBackendConfig  string
@@ -92,14 +93,17 @@ func WithHAProxy(cfg HAProxyConfig, f func(t *testing.T)) func(t *testing.T) {
 		type tmplCfg struct {
 			HAProxyConfig
 
-			EngineConfig string
-			StatsSocket  string
+			StatsSocket string
 		}
 		var tcfg tmplCfg
 		tcfg.HAProxyConfig = cfg
 		tcfg.StatsSocket = fmt.Sprintf("%s/stats%s.sock", os.TempDir(), tcfg.FrontendPort)
 
-		engineConfigFile := TempFile(t, "e2e.cfg", haproxyEngineConfig)
+		if cfg.EngineConfig == "" {
+			cfg.EngineConfig = haproxyEngineConfig
+		}
+
+		engineConfigFile := TempFile(t, "e2e.cfg", cfg.EngineConfig)
 		tcfg.EngineConfig = engineConfigFile
 		defer os.Remove(engineConfigFile)
 
