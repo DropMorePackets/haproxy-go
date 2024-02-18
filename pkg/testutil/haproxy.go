@@ -91,15 +91,6 @@ func mustExecuteTemplate(t *testing.T, text string, data any) string {
 
 func WithHAProxy(cfg HAProxyConfig, f func(t *testing.T)) func(t *testing.T) {
 	return func(t *testing.T) {
-		type tmplCfg struct {
-			HAProxyConfig
-
-			StatsSocket string
-		}
-		var tcfg tmplCfg
-		tcfg.HAProxyConfig = cfg
-		tcfg.StatsSocket = fmt.Sprintf("%s/stats%s.sock", os.TempDir(), tcfg.FrontendPort)
-
 		if cfg.EngineConfig == "" {
 			cfg.EngineConfig = haproxyEngineConfig
 		}
@@ -109,6 +100,15 @@ func WithHAProxy(cfg HAProxyConfig, f func(t *testing.T)) func(t *testing.T) {
 http-request return status 200 content-type "text/plain" string "Hello World!\n"
 `
 		}
+
+		type tmplCfg struct {
+			HAProxyConfig
+
+			StatsSocket string
+		}
+		var tcfg tmplCfg
+		tcfg.HAProxyConfig = cfg
+		tcfg.StatsSocket = fmt.Sprintf("%s/stats%s.sock", os.TempDir(), tcfg.FrontendPort)
 
 		engineConfigFile := TempFile(t, "e2e.cfg", cfg.EngineConfig)
 		tcfg.EngineConfig = engineConfigFile
