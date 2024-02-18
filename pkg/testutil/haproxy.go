@@ -38,7 +38,7 @@ backend backend
 
     {{ .CustomBackendConfig }}
 
-    http-request return status 200 content-type "text/plain" string "Hello World!\n"
+    {{ .BackendConfig }}
 
 backend e2e-spoa
     mode tcp
@@ -71,6 +71,7 @@ type HAProxyConfig struct {
 	EngineConfig         string
 	FrontendPort         string
 	CustomFrontendConfig string
+	BackendConfig        string
 	CustomBackendConfig  string
 }
 
@@ -101,6 +102,12 @@ func WithHAProxy(cfg HAProxyConfig, f func(t *testing.T)) func(t *testing.T) {
 
 		if cfg.EngineConfig == "" {
 			cfg.EngineConfig = haproxyEngineConfig
+		}
+
+		if cfg.BackendConfig == "" {
+			cfg.BackendConfig = `
+http-request return status 200 content-type "text/plain" string "Hello World!\n"
+`
 		}
 
 		engineConfigFile := TempFile(t, "e2e.cfg", cfg.EngineConfig)
