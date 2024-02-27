@@ -91,6 +91,10 @@ func (d DataType) String() string {
 		return "gpc"
 	case DataTypeGPCRateArray:
 		return "gpc_rate"
+	case DataTypeGlitchCounter:
+		return "glitch_cnt"
+	case DataTypeGlitchRate:
+		return "glitch_rate"
 	default:
 		return "StickTableUpdateMessageType(" + strconv.FormatInt(int64(d), 10) + ")"
 	}
@@ -166,6 +170,10 @@ const (
 	DataTypeGPCArray
 	// DataTypeGPCRateArray represents an array of gpc_rate
 	DataTypeGPCRateArray
+	// DataTypeGlitchCounter represents a cumulated number of front glitches
+	DataTypeGlitchCounter
+	// DataTypeGlitchRate represents a rate of front glitches
+	DataTypeGlitchRate
 )
 
 func (d DataType) New() MapData {
@@ -220,6 +228,10 @@ func (d DataType) New() MapData {
 		return new(DictData)
 	case DataTypeGPCRateArray:
 		return new(DictData)
+	case DataTypeGlitchCounter:
+		return new(UnsignedIntegerData)
+	case DataTypeGlitchRate:
+		return new(FreqData)
 	default:
 		return nil
 	}
