@@ -7,7 +7,7 @@ import (
 
 func Test_encode(t *testing.T) {
 	type args struct {
-		val int64
+		val uint64
 	}
 	tests := []struct {
 		name string

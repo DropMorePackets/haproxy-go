@@ -173,7 +173,7 @@ func (aw *ActionWriter) SetInt64(s varScope, name string, v int64) error {
 	aw.data[aw.off] = byte(DataTypeInt64)
 	aw.off++
 
-	n, err := PutVarint(aw.data[aw.off:], v)
+	n, err := PutVarint(aw.data[aw.off:], uint64(v))
 	if err != nil {
 		return err
 	}

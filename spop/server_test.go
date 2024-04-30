@@ -60,8 +60,8 @@ func newNotifyFrame(wr io.Writer) error {
 	defer releaseFrame(f)
 
 	f.frameType = frameTypeIDNotify
-	f.meta.StreamID = rand.Int63()
-	f.meta.FrameID = rand.Int63()
+	f.meta.StreamID = uint64(rand.Int63())
+	f.meta.FrameID = uint64(rand.Int63())
 	f.meta.Flags = frameFlagFin
 
 	if err := f.encodeHeader(); err != nil {

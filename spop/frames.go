@@ -129,8 +129,8 @@ func (a *AgentHelloFrame) WriteTo(w io.Writer) (int64, error) {
 }
 
 type AckFrame struct {
-	FrameID  int64
-	StreamID int64
+	FrameID  uint64
+	StreamID uint64
 
 	ActionWriterCallback func(*encoding.ActionWriter) error
 }

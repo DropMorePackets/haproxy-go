@@ -129,7 +129,7 @@ func (aw *KVWriter) setInt(name string, d DataType, v int64) error {
 	aw.data[aw.off] = byte(d)
 	aw.off++
 
-	n, err := PutVarint(aw.data[aw.off:], v)
+	n, err := PutVarint(aw.data[aw.off:], uint64(v))
 	if err != nil {
 		return err
 	}

@@ -24,7 +24,7 @@ const (
 
 func PutBytes(b []byte, v []byte) (int, error) {
 	l := len(v)
-	n, err := PutVarint(b, int64(l))
+	n, err := PutVarint(b, uint64(l))
 	if err != nil {
 		return 0, err
 	}

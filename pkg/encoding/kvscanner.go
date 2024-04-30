@@ -177,10 +177,12 @@ func (k *KVScanner) Next(e *KVEntry) bool {
 
 	case DataTypeInt32, DataTypeInt64,
 		DataTypeUInt32, DataTypeUInt64:
-		e.intVal, n, k.lastErr = Varint(k.buf)
+		var v uint64
+		v, n, k.lastErr = Varint(k.buf)
 		if k.lastErr != nil {
 			return false
 		}
+		e.intVal = int64(v)
 
 		k.buf = k.buf[n:]
 

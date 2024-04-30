@@ -1,3 +1,19 @@
+// SPDX-License-Identifier: Apache-2.0
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+//
+// This code is copied from https://github.com/criteo/haproxy-spoe-go/blob/master/encoding.go
+
 package encoding
 
 import (
@@ -10,13 +26,13 @@ var (
 	ErrInsufficientSpace    = fmt.Errorf("insufficient space in buffer")
 )
 
-func ReadVarint(rd io.ByteReader) (int64, error) {
+func ReadVarint(rd io.ByteReader) (uint64, error) {
 	b, err := rd.ReadByte()
 	if err != nil {
 		return 0, ErrUnterminatedSequence
 	}
 
-	val := int64(b)
+	val := uint64(b)
 	off := 1
 
 	if val < 240 {
@@ -30,7 +46,7 @@ func ReadVarint(rd io.ByteReader) (int64, error) {
 			return 0, ErrUnterminatedSequence
 		}
 
-		v := int64(b)
+		v := uint64(b)
 		val += v << r
 		off++
 		r += 7
@@ -43,8 +59,7 @@ func ReadVarint(rd io.ByteReader) (int64, error) {
 	return val, nil
 }
 
-// Source: https://github.com/criteo/haproxy-spoe-go/blob/master/encoding.go
-func PutVarint(b []byte, i int64) (int, error) {
+func PutVarint(b []byte, i uint64) (int, error) {
 	if len(b) == 0 {
 		return 0, ErrInsufficientSpace
 	}
@@ -78,12 +93,11 @@ func PutVarint(b []byte, i int64) (int, error) {
 	return n, nil
 }
 
-// Source: https://github.com/criteo/haproxy-spoe-go/blob/master/encoding.go
-func Varint(b []byte) (int64, int, error) {
+func Varint(b []byte) (uint64, int, error) {
 	if len(b) == 0 {
 		return 0, 0, ErrUnterminatedSequence
 	}
-	val := int64(b[0])
+	val := uint64(b[0])
 	off := 1
 
 	if val < 240 {
@@ -96,7 +110,7 @@ func Varint(b []byte) (int64, int, error) {
 			return 0, 0, ErrUnterminatedSequence
 		}
 
-		v := int64(b[off])
+		v := uint64(b[off])
 		val += v << r
 		off++
 		r += 7

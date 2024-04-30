@@ -34,8 +34,8 @@ func releaseFrame(f *frame) {
 
 type frameMetadata struct {
 	Flags    frameFlag
-	StreamID int64
-	FrameID  int64
+	StreamID uint64
+	FrameID  uint64
 }
 
 type frame struct {
