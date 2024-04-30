@@ -1,9 +1,9 @@
 package buffer
 
 type SliceBuffer struct {
+	buf         []byte
 	readOffset  int
 	writeOffset int
-	buf         []byte
 }
 
 func NewSliceBuffer(size int) *SliceBuffer {

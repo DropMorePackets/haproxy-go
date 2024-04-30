@@ -9,9 +9,9 @@ import (
 )
 
 type rwPipeConn struct {
+	rw        *rwPipe
 	closedMtx sync.Mutex
 	closed    bool
-	rw        *rwPipe
 }
 
 func (c *rwPipeConn) Network() string {

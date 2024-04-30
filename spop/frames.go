@@ -88,8 +88,8 @@ const (
 
 type AgentHelloFrame struct {
 	Version      string
-	MaxFrameSize uint32
 	Capabilities []string
+	MaxFrameSize uint32
 }
 
 func (a *AgentHelloFrame) Write(w io.Writer) error {
@@ -129,10 +129,9 @@ func (a *AgentHelloFrame) WriteTo(w io.Writer) (int64, error) {
 }
 
 type AckFrame struct {
-	FrameID  uint64
-	StreamID uint64
-
 	ActionWriterCallback func(*encoding.ActionWriter) error
+	FrameID              uint64
+	StreamID             uint64
 }
 
 func (a *AckFrame) WriteTo(w io.Writer) (int64, error) {

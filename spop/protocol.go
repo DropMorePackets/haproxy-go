@@ -27,9 +27,10 @@ type protocolClient struct {
 	ctxCancel context.CancelFunc
 	as        *asyncScheduler
 
-	gotHello     bool
-	maxFrameSize uint32
 	engineID     string
+	maxFrameSize uint32
+
+	gotHello bool
 }
 
 func (c *protocolClient) Close() error {

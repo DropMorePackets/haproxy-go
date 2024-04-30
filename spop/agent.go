@@ -8,9 +8,9 @@ import (
 )
 
 type Agent struct {
-	Addr        string
 	Handler     Handler
 	BaseContext context.Context
+	Addr        string
 }
 
 func ListenAndServe(addr string, handler Handler) error {

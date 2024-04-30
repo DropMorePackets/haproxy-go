@@ -43,9 +43,9 @@ func ReleaseKVEntry(k *KVEntry) {
 }
 
 type KVScanner struct {
+	lastErr error
 	buf     []byte
 	left    int
-	lastErr error
 }
 
 // RemainingBuf returns the remaining length of the buffer
@@ -64,13 +64,14 @@ func (k *KVScanner) Error() error {
 type KVEntry struct {
 	name []byte
 
-	dataType DataType
-
 	// if the content is a varint, we directly decode it.
 	// else its decoded on the fly
 	byteVal []byte
-	boolVar bool
 	intVal  int64
+
+	dataType DataType
+
+	boolVar bool
 }
 
 func (k *KVEntry) NameBytes() []byte {

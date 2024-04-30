@@ -42,10 +42,10 @@ func ReleaseMessage(m *Message) {
 }
 
 type Message struct {
+	KV   *KVScanner
 	name []byte
 
 	kvEntryCount byte
-	KV           *KVScanner
 }
 
 func (m *Message) NameBytes() []byte {
@@ -53,8 +53,8 @@ func (m *Message) NameBytes() []byte {
 }
 
 type MessageScanner struct {
-	buf     []byte
 	lastErr error
+	buf     []byte
 }
 
 func NewMessageScanner(b []byte) *MessageScanner {

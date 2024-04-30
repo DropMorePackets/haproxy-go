@@ -7,13 +7,13 @@ import (
 )
 
 type queue struct {
-	elems        []*frame
-	lock         sync.RWMutex
 	notEmptyCond *sync.Cond
 	notFullCond  *sync.Cond
+	elems        []*frame
 	tail         int
 	head         int
 	size         int
+	lock         sync.RWMutex
 }
 
 func newQueue(cap int) *queue {

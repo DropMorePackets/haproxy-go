@@ -39,11 +39,12 @@ type frameMetadata struct {
 }
 
 type frame struct {
+	buf *buffer.SliceBuffer
+
 	length []byte
-	buf    *buffer.SliceBuffer
+	meta   frameMetadata
 
 	frameType frameType
-	meta      frameMetadata
 }
 
 func (f *frame) ReadFrom(r io.Reader) (int64, error) {
