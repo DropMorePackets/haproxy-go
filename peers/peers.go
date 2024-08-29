@@ -56,7 +56,10 @@ func (a *Peer) Serve(l net.Listener) error {
 			return fmt.Errorf("accepting conn: %w", err)
 		}
 
-		p := newProtocolClient(a.BaseContext, nc, a.HandlerSource())
+		// Wrap the context to provide access to the underlying connection.
+		// TODO(tim): Do we really want this?
+		ctx := context.WithValue(a.BaseContext, connectionKey, nc)
+		p := newProtocolClient(ctx, nc, a.HandlerSource())
 		go func() {
 			defer nc.Close()
 			defer p.Close()
@@ -66,4 +69,16 @@ func (a *Peer) Serve(l net.Listener) error {
 			}
 		}()
 	}
+}
+
+type contextKey string
+
+const (
+	connectionKey = contextKey("connection")
+)
+
+// Connection returns the underlying connection used in calls
+// to function in a Handler.
+func Connection(ctx context.Context) net.Conn {
+	return ctx.Value(connectionKey).(net.Conn)
 }
