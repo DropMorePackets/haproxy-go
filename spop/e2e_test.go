@@ -6,6 +6,7 @@ import (
 	"context"
 	"fmt"
 	"net/http"
+	"sync"
 	"testing"
 	"time"
 
@@ -84,6 +85,36 @@ func TestE2E(t *testing.T) {
 				if resp.StatusCode != http.StatusOK {
 					t.Fatalf("expected %d; got %d", http.StatusOK, resp.StatusCode)
 				}
+			},
+		},
+		{
+			name: "high request rate",
+			hf: func(ctx context.Context, w *encoding.ActionWriter, m *encoding.Message) {
+				k := encoding.AcquireKVEntry()
+				m.KV.Next(k)
+				if !k.NameEquals("id") {
+					t.Errorf("expected %q; got %q", "id", string(k.NameBytes()))
+				}
+			},
+			tf: func(t *testing.T, config testutil.HAProxyConfig) {
+				var wg sync.WaitGroup
+				for i := 0; i < 100; i++ {
+					wg.Add(1)
+					go func() {
+						defer wg.Done()
+						for i := 0; i < 100; i++ {
+							resp, err := http.Get("http://127.0.0.1:" + config.FrontendPort)
+							if err != nil {
+								t.Error(err)
+							}
+
+							if resp.StatusCode != http.StatusOK {
+								t.Errorf("expected %d; got %d", http.StatusOK, resp.StatusCode)
+							}
+						}
+					}()
+				}
+				wg.Wait()
 			},
 		},
 	}
