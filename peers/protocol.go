@@ -39,6 +39,9 @@ func newProtocolClient(ctx context.Context, rw io.ReadWriter, handler Handler) *
 
 func (c *protocolClient) Close() error {
 	defer c.ctxCancel()
+	if c.ctx.Err() != nil {
+		return c.ctx.Err()
+	}
 
 	return c.handler.Close()
 }
