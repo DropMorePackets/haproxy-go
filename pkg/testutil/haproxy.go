@@ -29,8 +29,8 @@ frontend test
     mode http
     bind 127.0.0.1:{{ .FrontendPort }}
 
-{{- if .EngineConfig }}
-    filter spoe engine e2e config {{ .EngineConfig }}
+{{- if .EngineConfigFile }}
+    filter spoe engine e2e config {{ .EngineConfigFile }}
 {{ end -}}
 
     {{ .CustomFrontendConfig }}
@@ -119,10 +119,10 @@ http-request return status 200 content-type "text/plain" string "Hello World!\n"
 		type tmplCfg struct {
 			HAProxyConfig
 
-
-			StatsSocket   string
-			InstanceID    string
-			LocalPeerAddr string
+			StatsSocket      string
+			InstanceID       string
+			LocalPeerAddr    string
+			EngineConfigFile string
 		}
 		var tcfg tmplCfg
 		tcfg.HAProxyConfig = cfg
@@ -132,7 +132,7 @@ http-request return status 200 content-type "text/plain" string "Hello World!\n"
 
 		if cfg.EngineAddr != "" {
 			engineConfigFile := TempFile(t, "e2e.cfg", cfg.EngineConfig)
-			tcfg.EngineConfig = engineConfigFile
+			tcfg.EngineConfigFile = engineConfigFile
 			defer os.Remove(engineConfigFile)
 		}
 
