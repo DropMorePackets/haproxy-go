@@ -33,7 +33,7 @@ func (t KeyType) New() MapKey {
 	case KeyTypeBinary:
 		return new(BinaryKey)
 	default:
-		return nil
+		panic("unknown key type: " + t.String())
 	}
 }
 

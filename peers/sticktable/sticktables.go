@@ -105,6 +105,70 @@ func (s *Definition) Unmarshal(b []byte) (int, error) {
 	return offset, nil
 }
 
+func (s *Definition) Marshal(b []byte) (int, error) {
+	var offset int
+	n, err := encoding.PutVarint(b[offset:], s.StickTableID)
+	offset += n
+	if err != nil {
+		return offset, err
+	}
+
+	n, err = encoding.PutVarint(b[offset:], uint64(len(s.Name)))
+	offset += n
+	if err != nil {
+		return offset, err
+	}
+
+	offset += copy(b[offset:], s.Name)
+
+	n, err = encoding.PutVarint(b[offset:], uint64(s.KeyType))
+	offset += n
+	if err != nil {
+		return offset, err
+	}
+
+	n, err = encoding.PutVarint(b[offset:], s.KeyLength)
+	offset += n
+	if err != nil {
+		return offset, err
+	}
+
+	var dataTypes uint64
+	for _, dataType := range s.DataTypes {
+		dataTypes |= 1 << dataType.DataType
+	}
+
+	n, err = encoding.PutVarint(b[offset:], dataTypes)
+	offset += n
+	if err != nil {
+		return offset, err
+	}
+
+	n, err = encoding.PutVarint(b[offset:], s.Expiry)
+	offset += n
+	if err != nil {
+		return offset, err
+	}
+
+	for _, dataType := range s.DataTypes {
+		if dataType.DataType.IsDelay() {
+			n, err = encoding.PutVarint(b[offset:], dataType.Counter)
+			offset += n
+			if err != nil {
+				return offset, err
+			}
+
+			n, err = encoding.PutVarint(b[offset:], dataType.Period)
+			offset += n
+			if err != nil {
+				return offset, err
+			}
+		}
+	}
+
+	return offset, nil
+}
+
 type EntryUpdate struct {
 	StickTable        *Definition
 	WithLocalUpdateID bool
@@ -123,6 +187,35 @@ func (e *EntryUpdate) String() string {
 	}
 
 	return fmt.Sprintf("EntryUpdate %d: %s - %s", e.LocalUpdateID, e.Key, strings.Join(data, " | "))
+}
+
+func (e *EntryUpdate) Marshal(b []byte) (int, error) {
+	var offset int
+	if e.WithLocalUpdateID {
+		binary.BigEndian.PutUint32(b[offset:], e.LocalUpdateID)
+		offset += 4
+	}
+
+	if e.WithExpiry {
+		binary.BigEndian.PutUint32(b[offset:], e.Expiry)
+		offset += 4
+	}
+
+	n, err := e.Key.Marshal(b[offset:], e.StickTable.KeyLength)
+	offset += n
+	if err != nil {
+		return offset, err
+	}
+
+	for _, data := range e.Data {
+		n, err := data.Unmarshal(b[offset:])
+		offset += n
+		if err != nil {
+			return offset, err
+		}
+	}
+
+	return offset, nil
 }
 
 func (e *EntryUpdate) Unmarshal(b []byte) (int, error) {

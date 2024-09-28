@@ -11,6 +11,7 @@ import (
 type MapKey interface {
 	fmt.Stringer
 	Unmarshal(b []byte, keySize uint64) (int, error)
+	Marshal(b []byte, keySize uint64) (int, error)
 }
 
 type SignedIntegerKey int32
@@ -65,7 +66,7 @@ func (v *StringKey) Unmarshal(b []byte, keySize uint64) (int, error) {
 	if valueLength == 0 {
 		return n, nil
 	}
-	*v = StringKey(b[n:valueLength])
+	*v = StringKey(b[n : n+int(valueLength)])
 	return n + int(valueLength), nil
 }
 
@@ -87,6 +88,7 @@ func (v *BinaryKey) String() string {
 type MapData interface {
 	fmt.Stringer
 	Unmarshal(b []byte) (int, error)
+	Marshal(b []byte) (int, error)
 }
 
 type FreqData struct {
@@ -226,6 +228,107 @@ func (f *DictData) Unmarshal(b []byte) (int, error) {
 	value := make([]byte, valueLength)
 	offset += copy(value, b[offset:])
 	f.Value = value
+
+	return offset, nil
+}
+
+func (v *SignedIntegerKey) Marshal(b []byte, keySize uint64) (int, error) {
+	binary.BigEndian.PutUint32(b, uint32(*v))
+	return 4, nil
+}
+
+func (v *IPv4AddressKey) Marshal(b []byte, keySize uint64) (int, error) {
+	if keySize != 4 {
+		return 0, fmt.Errorf("invalid ipv4 key size: %d", keySize)
+	}
+	a := (*netip.Addr)(v).As4()
+	copy(b, a[:])
+	return 4, nil
+}
+
+func (v *IPv6AddressKey) Marshal(b []byte, keySize uint64) (int, error) {
+	if keySize != 16 {
+		return 0, fmt.Errorf("invalid ipv6 key size: %d", keySize)
+	}
+	a := (*netip.Addr)(v).As16()
+	copy(b, a[:])
+	return 16, nil
+}
+
+func (v *StringKey) Marshal(b []byte, keySize uint64) (int, error) {
+	n, err := encoding.PutVarint(b, uint64(len(*v)))
+	if err != nil {
+		return n, err
+	}
+
+	return n + copy(b[n:], *v), nil
+}
+
+func (v *BinaryKey) Marshal(b []byte, keySize uint64) (int, error) {
+	return copy(b[:keySize], *v), nil
+}
+
+func (f *FreqData) Marshal(b []byte) (int, error) {
+	var offset int
+
+	n, err := encoding.PutVarint(b[offset:], f.CurrentTick)
+	offset += n
+	if err != nil {
+		return offset, err
+	}
+
+	n, err = encoding.PutVarint(b[offset:], f.CurrentPeriod)
+	offset += n
+	if err != nil {
+		return offset, err
+	}
+
+	n, err = encoding.PutVarint(b[offset:], f.LastPeriod)
+	offset += n
+	if err != nil {
+		return offset, err
+	}
+
+	return offset, nil
+}
+
+func (v *SignedIntegerData) Marshal(b []byte) (int, error) {
+	return encoding.PutVarint(b, uint64(*v))
+}
+
+func (v *UnsignedIntegerData) Marshal(b []byte) (int, error) {
+	return encoding.PutVarint(b, uint64(*v))
+}
+
+func (v *UnsignedLongLongData) Marshal(b []byte) (int, error) {
+	return encoding.PutVarint(b, uint64(*v))
+}
+
+func (f *DictData) Marshal(b []byte) (int, error) {
+	var offset int
+
+	n, err := encoding.PutVarint(b[offset:], uint64(len(f.Value)))
+	offset += n
+	if err != nil {
+		return offset, err
+	}
+
+	n, err = encoding.PutVarint(b[offset:], uint64(f.ID))
+	offset += n
+	if err != nil {
+		return offset, err
+	}
+
+	if len(f.Value) > 0 {
+		n, err := encoding.PutVarint(b[offset:], uint64(len(f.Value)))
+		offset += n
+		if err != nil {
+			return offset, err
+		}
+
+		copy(b[offset:], f.Value)
+		offset += len(f.Value)
+	}
 
 	return offset, nil
 }
