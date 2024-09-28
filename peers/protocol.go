@@ -190,45 +190,6 @@ func (m *rawMessage) ReadFrom(r byteReader) (int64, error) {
 	return int64(n + readData), nil
 }
 
-// Handshake is composed by these fields:
-//
-//	protocol identifier   : HAProxyS
-//	version               : 2.1
-//	remote peer identifier: the peer name this "hello" message is sent to.
-//	local peer identifier : the name of the peer which sends this "hello" message.
-//	process ID            : the ID of the process handling this peer session.
-//	relative process ID   : the haproxy's relative process ID (0 if nbproc == 1).
-type Handshake struct {
-	ProtocolIdentifier  string
-	Version             string
-	RemotePeer          string
-	LocalPeerIdentifier string
-	ProcessID           int
-	RelativeProcessID   int
-}
-
-func (h *Handshake) ReadFrom(r io.Reader) (n int64, err error) {
-	scanner := bufio.NewScanner(r)
-
-	scanner.Scan()
-	_, err = fmt.Sscanf(scanner.Text(), "%s %s", &h.ProtocolIdentifier, &h.Version)
-	if err != nil {
-		return -1, err
-	}
-
-	scanner.Scan()
-	h.RemotePeer = scanner.Text()
-
-	scanner.Scan()
-	_, err = fmt.Sscanf(scanner.Text(), "%s %d %d", &h.LocalPeerIdentifier, &h.ProcessID, &h.RelativeProcessID)
-	if err != nil {
-		return -1, err
-	}
-
-	//TODO: find out how many bytes where read.
-	return -1, scanner.Err()
-}
-
 func (t ErrorMessageType) OnMessage(m *rawMessage, c *protocolClient) error {
 	switch t {
 	case ErrorMessageProtocol:
