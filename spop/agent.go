@@ -2,6 +2,7 @@ package spop
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"log"
 	"net"
@@ -46,12 +47,23 @@ func (a *Agent) Serve(l net.Listener) error {
 			return fmt.Errorf("accepting conn: %w", err)
 		}
 
-		p := newProtocolClient(a.BaseContext, nc, a.Handler)
+		if tcp, ok := nc.(*net.TCPConn); ok {
+			err = tcp.SetWriteBuffer(maxFrameSize * 4)
+			if err != nil {
+				return err
+			}
+			err = tcp.SetReadBuffer(maxFrameSize * 4)
+			if err != nil {
+				return err
+			}
+		}
+
+		p := newProtocolClient(a.BaseContext, nc, as, a.Handler)
 		go func() {
 			defer nc.Close()
 			defer p.Close()
 
-			if err := p.Serve(); err != nil && err != p.ctx.Err() {
+			if err := p.Serve(); err != nil && !errors.Is(err, p.ctx.Err()) {
 				log.Println(err)
 			}
 		}()

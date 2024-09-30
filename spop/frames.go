@@ -1,6 +1,7 @@
 package spop
 
 import (
+	"fmt"
 	"io"
 	"strings"
 
@@ -30,7 +31,6 @@ const (
 
 type frameWriter interface {
 	io.WriterTo
-	Write(w io.Writer) error
 }
 
 var (
@@ -40,11 +40,6 @@ var (
 
 type AgentDisconnectFrame struct {
 	ErrCode errorCode
-}
-
-func (a *AgentDisconnectFrame) Write(w io.Writer) error {
-	_, err := a.WriteTo(w)
-	return err
 }
 
 func (a *AgentDisconnectFrame) WriteTo(w io.Writer) (int64, error) {
@@ -90,11 +85,6 @@ type AgentHelloFrame struct {
 	Version      string
 	Capabilities []string
 	MaxFrameSize uint32
-}
-
-func (a *AgentHelloFrame) Write(w io.Writer) error {
-	_, err := a.WriteTo(w)
-	return err
 }
 
 func (a *AgentHelloFrame) WriteTo(w io.Writer) (int64, error) {
@@ -144,12 +134,13 @@ func (a *AckFrame) WriteTo(w io.Writer) (int64, error) {
 	f.meta.Flags = frameFlagFin
 
 	if err := f.encodeHeader(); err != nil {
-		return 0, err
+		return 0, fmt.Errorf("encoding header: %w", err)
 	}
 
 	aw := encoding.AcquireActionWriter(f.buf.WriteBytes(), 0)
 	defer encoding.ReleaseActionWriter(aw)
 
+	// TODO: errors are not correctly handled and will result in an invalid state.
 	if err := a.ActionWriterCallback(aw); err != nil {
 		return 0, err
 	}
@@ -157,9 +148,4 @@ func (a *AckFrame) WriteTo(w io.Writer) (int64, error) {
 	f.buf.AdvanceW(aw.Off())
 
 	return f.WriteTo(w)
-}
-
-func (a *AckFrame) Write(w io.ReadWriter) error {
-	_, err := a.WriteTo(w)
-	return err
 }

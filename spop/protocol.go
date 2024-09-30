@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io"
 	"runtime"
+	"syscall"
 
 	"github.com/dropmorepackets/haproxy-go/pkg/encoding"
 )
@@ -24,23 +25,30 @@ type protocolClient struct {
 	handler Handler
 	ctx     context.Context
 
-	ctxCancel context.CancelFunc
+	ctxCancel context.CancelCauseFunc
 	as        *asyncScheduler
 
 	engineID     string
 	maxFrameSize uint32
 
 	gotHello bool
+	lf       frameType
 }
 
 func (c *protocolClient) Close() error {
-	errDisconnect := (&AgentDisconnectFrame{
+	if c.ctx.Err() != nil {
+		return c.ctx.Err()
+	}
+
+	// We ignore any error since the disconnect frame is delivered on
+	// best effort anyway.
+	_, _ = (&AgentDisconnectFrame{
 		ErrCode: ErrorUnknown,
-	}).Write(c.rw)
+	}).WriteTo(c.rw)
 
-	c.ctxCancel()
+	c.ctxCancel(fmt.Errorf("closing client"))
 
-	return errors.Join(errDisconnect, c.ctx.Err())
+	return nil
 }
 
 func (c *protocolClient) frameHandler(f *frame) error {
@@ -63,17 +71,17 @@ func (c *protocolClient) Serve() error {
 		f := acquireFrame()
 		if _, err := f.ReadFrom(c.rw); err != nil {
 			if c.ctx.Err() != nil {
-				return c.ctx.Err()
+				return context.Cause(c.ctx)
 			}
 
-			if errors.Is(err, io.EOF) {
+			if errors.Is(err, io.EOF) || errors.Is(err, syscall.ECONNRESET) {
 				return nil
 			}
 
 			return err
 		}
 
-		c.as.schedule(f)
+		c.as.schedule(f, c)
 	}
 }
 
@@ -112,7 +120,7 @@ func (c *protocolClient) onHAProxyHello(f *frame) error {
 		case k.NameEquals(helloKeyHealthcheck):
 			// as described in the protocol, close connection after hello
 			// AGENT-HELLO + close()
-			defer c.ctxCancel()
+			defer c.ctxCancel(nil)
 		}
 	}
 
@@ -120,11 +128,12 @@ func (c *protocolClient) onHAProxyHello(f *frame) error {
 		return err
 	}
 
-	return (&AgentHelloFrame{
+	_, err := (&AgentHelloFrame{
 		Version:      version,
 		MaxFrameSize: c.maxFrameSize,
 		Capabilities: []string{capabilityNamePipelining, capabilityNameAsync},
-	}).Write(c.rw)
+	}).WriteTo(c.rw)
+	return err
 }
 
 func (c *protocolClient) runHandler(ctx context.Context, w *encoding.ActionWriter, m *encoding.Message, handler HandlerFunc) (err error) {
@@ -166,14 +175,50 @@ func (c *protocolClient) onNotify(f *frame) error {
 		return s.Error()
 	}
 
-	return (&AckFrame{
+	_, err := (&AckFrame{
 		FrameID:              f.meta.FrameID,
 		StreamID:             f.meta.StreamID,
 		ActionWriterCallback: fn,
-	}).Write(c.rw)
+	}).WriteTo(c.rw)
+	return err
 }
 
 func (c *protocolClient) onHAProxyDisconnect(f *frame) error {
-	//TODO: read disconnect reason and return error if required?
-	return nil
+	if f.buf.Len() == 0 {
+		return fmt.Errorf("disconnect frame without content")
+	}
+
+	s := encoding.AcquireKVScanner(f.buf.ReadBytes(), -1)
+	defer encoding.ReleaseKVScanner(s)
+
+	k := encoding.AcquireKVEntry()
+	defer encoding.ReleaseKVEntry(k)
+
+	var (
+		code errorCode
+	)
+
+	for s.Next(k) {
+		switch name := string(k.NameBytes()); name {
+		case "status-code":
+			code = errorCode(k.ValueInt())
+		case "message":
+			// We don't really care about the message since they should all be
+			// defined in the errorCode type.
+		default:
+			panic("unexpected kv entry: " + name)
+		}
+	}
+
+	var err error
+	switch code {
+	// HAProxy returns an IO error when it doesn't require a connection
+	// anymore.
+	case ErrorIO, ErrorTimeout, ErrorNone:
+	default:
+		err = fmt.Errorf("disconnect frame with code %d: %s", code, code)
+	}
+
+	c.ctxCancel(err)
+	return err
 }

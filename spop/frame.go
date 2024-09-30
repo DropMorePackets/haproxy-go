@@ -28,6 +28,8 @@ func acquireFrame() *frame {
 
 func releaseFrame(f *frame) {
 	f.buf.Reset()
+	f.frameType = 0
+	f.meta = frameMetadata{}
 
 	framePool.Put(f)
 }
