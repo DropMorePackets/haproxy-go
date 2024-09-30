@@ -10,12 +10,12 @@ import (
 	"github.com/dropmorepackets/haproxy-go/pkg/encoding"
 )
 
-func newProtocolClient(ctx context.Context, rw io.ReadWriter, handler Handler) *protocolClient {
+func newProtocolClient(ctx context.Context, rw io.ReadWriter, as *asyncScheduler, handler Handler) *protocolClient {
 	var c protocolClient
 	c.rw = rw
 	c.handler = handler
-	c.ctx, c.ctxCancel = context.WithCancel(ctx)
-	c.as = newAsyncScheduler(&c)
+	c.ctx, c.ctxCancel = context.WithCancelCause(ctx)
+	c.as = as
 	return &c
 }
 

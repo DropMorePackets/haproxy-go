@@ -39,6 +39,7 @@ func (a *Agent) Serve(l net.Listener) error {
 		l.Close()
 	}()
 
+	as := newAsyncScheduler()
 	for {
 		nc, err := l.Accept()
 		if err != nil {

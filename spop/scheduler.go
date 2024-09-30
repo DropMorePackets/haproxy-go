@@ -9,16 +9,21 @@ import (
 type queue struct {
 	notEmptyCond *sync.Cond
 	notFullCond  *sync.Cond
-	elems        []*frame
+	elems        []queueElem
 	tail         int
 	head         int
 	size         int
 	lock         sync.RWMutex
 }
 
+type queueElem struct {
+	f  *frame
+	pc *protocolClient
+}
+
 func newQueue(cap int) *queue {
 	q := &queue{
-		elems: make([]*frame, cap),
+		elems: make([]queueElem, cap),
 	}
 
 	q.notEmptyCond = sync.NewCond(&q.lock)
@@ -35,7 +40,7 @@ func (bq *queue) isEmpty() bool {
 	return bq.size <= 0
 }
 
-func (bq *queue) Put(f *frame) {
+func (bq *queue) Put(f *frame, pc *protocolClient) {
 	bq.lock.Lock()
 	defer bq.lock.Unlock()
 
@@ -43,14 +48,14 @@ func (bq *queue) Put(f *frame) {
 		bq.notFullCond.Wait()
 	}
 
-	bq.elems[bq.tail] = f
+	bq.elems[bq.tail] = queueElem{f, pc}
 	bq.tail = (bq.tail + 1) % len(bq.elems)
 	bq.size++
 
 	bq.notEmptyCond.Signal()
 }
 
-func (bq *queue) Get() *frame {
+func (bq *queue) Get() queueElem {
 	bq.lock.Lock()
 	defer bq.lock.Unlock()
 
@@ -64,22 +69,16 @@ func (bq *queue) Get() *frame {
 	bq.head = (bq.head + 1) % len(bq.elems)
 	bq.size--
 
-	if item == nil {
-		panic("invalid item")
-	}
-
 	return item
 }
 
 type asyncScheduler struct {
-	q  *queue
-	pc *protocolClient
+	q *queue
 }
 
-func newAsyncScheduler(pc *protocolClient) *asyncScheduler {
+func newAsyncScheduler() *asyncScheduler {
 	a := asyncScheduler{
-		q:  newQueue(runtime.NumCPU() * 2),
-		pc: pc,
+		q: newQueue(runtime.NumCPU() * 2),
 	}
 
 	for i := 0; i < runtime.NumCPU(); i++ {
@@ -91,14 +90,14 @@ func newAsyncScheduler(pc *protocolClient) *asyncScheduler {
 
 func (a *asyncScheduler) queueWorker() {
 	for {
-		f := a.q.Get()
-		if err := a.pc.frameHandler(f); err != nil {
+		qe := a.q.Get()
+		if err := qe.pc.frameHandler(qe.f); err != nil {
 			log.Println(err)
 			continue
 		}
 	}
 }
 
-func (a *asyncScheduler) schedule(f *frame) {
-	a.q.Put(f)
+func (a *asyncScheduler) schedule(f *frame, pc *protocolClient) {
+	a.q.Put(f, pc)
 }

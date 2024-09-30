@@ -47,7 +47,7 @@ func TestFakeCon(t *testing.T) {
 		cancel()
 	})
 
-	pc := newProtocolClient(context.Background(), pipeConn, handler)
+	pc := newProtocolClient(context.Background(), pipeConn, newAsyncScheduler(), handler)
 	defer pc.Close()
 	defer pipe.Close()
 	go pc.Serve()
