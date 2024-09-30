@@ -6,23 +6,19 @@ import (
 
 const runsPerTest = 10
 
-func WithoutAllocations(fn func(*testing.T)) func(t *testing.T) {
-	return WithNAllocations(0, fn)
+func WithoutAllocations(tb testing.TB, fn func()) {
+	WithNAllocations(tb, 0, fn)
 }
 
-func WithNAllocations(n uint64, fn func(*testing.T)) func(t *testing.T) {
-	return func(t *testing.T) {
-		avg := testing.AllocsPerRun(runsPerTest, func() {
-			fn(t)
-		})
+func WithNAllocations(tb testing.TB, n uint64, fn func()) {
+	avg := testing.AllocsPerRun(runsPerTest, fn)
 
-		// early exit when failed
-		if t.Failed() {
-			return
-		}
+	// early exit when failed
+	if tb.Failed() {
+		return
+	}
 
-		if uint64(avg) != n {
-			t.Errorf("got %v allocs, want %d allocs", avg, n)
-		}
+	if uint64(avg) != n {
+		tb.Errorf("got %v allocs, want %d allocs", avg, n)
 	}
 }

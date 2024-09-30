@@ -5,21 +5,23 @@ import (
 	"testing"
 )
 
-func TCPListener(t *testing.T) net.Listener {
+func TCPListener(tb testing.TB) net.Listener {
+	tb.Helper()
 	l, err := net.Listen("tcp", ":0")
 	if err != nil {
-		t.Fatal(err)
+		tb.Fatal(err)
 	}
-	t.Cleanup(func() {
+	tb.Cleanup(func() {
 		_ = l.Close()
 	})
 	return l
 }
 
-func TCPPort(t *testing.T) int {
+func TCPPort(tb testing.TB) int {
+	tb.Helper()
 	l, err := net.Listen("tcp", ":0")
 	if err != nil {
-		t.Fatal(err)
+		tb.Fatal(err)
 	}
 	defer l.Close()
 	return l.Addr().(*net.TCPAddr).Port

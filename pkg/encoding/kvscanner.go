@@ -93,7 +93,7 @@ func (k *KVEntry) ValueBool() bool {
 func (k *KVEntry) ValueAddr() netip.Addr {
 	addr, ok := netip.AddrFromSlice(k.byteVal)
 	if !ok {
-		panic("invalid addr decode")
+		panic("invalid addr decode: " + fmt.Sprintf("%x", k.byteVal))
 	}
 	return addr
 }

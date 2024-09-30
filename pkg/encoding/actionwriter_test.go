@@ -11,7 +11,7 @@ func TestActionWriter(t *testing.T) {
 	buf := make([]byte, 16386)
 
 	const exampleKey, exampleValue = "key", "value"
-	testutil.WithoutAllocations(func(t *testing.T) {
+	testutil.WithoutAllocations(t, func() {
 		aw := NewActionWriter(buf, 0)
 
 		if err := aw.SetString(VarScopeTransaction, exampleKey, exampleValue); err != nil {
@@ -19,7 +19,7 @@ func TestActionWriter(t *testing.T) {
 		}
 
 		buf = aw.Bytes()
-	})(t)
+	})
 
 	const expectedValue = "010302036b6579080576616c7565"
 	if s := fmt.Sprintf("%x", buf); s != expectedValue {

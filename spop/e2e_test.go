@@ -121,7 +121,25 @@ func TestE2E(t *testing.T) {
 
 	t.Parallel()
 	for _, test := range tests {
-		t.Run(test.name, withSPOP(t, test.frontendCfg, test.backendCfg, test.hf, test.tf))
+		t.Run(test.name, func(t *testing.T) {
+			a := Agent{Handler: test.hf}
+
+			// create the listener synchronously to prevent a race
+			l := testutil.TCPListener(t)
+			// ignore errors as the listener will be closed by t.Cleanup
+			go a.Serve(l)
+
+			cfg := testutil.HAProxyConfig{
+				EngineAddr:           l.Addr().String(),
+				FrontendPort:         fmt.Sprintf("%d", testutil.TCPPort(t)),
+				CustomFrontendConfig: test.frontendCfg,
+				CustomBackendConfig:  test.backendCfg,
+			}
+
+			cfg.Run(t)
+
+			test.tf(t, cfg)
+		})
 	}
 }
 
@@ -131,24 +149,4 @@ type E2ETest struct {
 	tf          func(*testing.T, testutil.HAProxyConfig)
 	frontendCfg string
 	backendCfg  string
-}
-
-func withSPOP(t *testing.T, frontendCfg, backendCfg string, hf HandlerFunc, f func(*testing.T, testutil.HAProxyConfig)) func(t *testing.T) {
-	a := Agent{Handler: hf}
-
-	// create the listener synchronously to prevent a race
-	l := testutil.TCPListener(t)
-	// ignore errors as the listener will be closed by t.Cleanup
-	go a.Serve(l)
-
-	cfg := testutil.HAProxyConfig{
-		EngineAddr:           l.Addr().String(),
-		FrontendPort:         fmt.Sprintf("%d", testutil.TCPPort(t)),
-		CustomFrontendConfig: frontendCfg,
-		CustomBackendConfig:  backendCfg,
-	}
-
-	return testutil.WithHAProxy(cfg, func(t *testing.T) {
-		f(t, cfg)
-	})
 }

@@ -42,7 +42,9 @@ backend st_src_global
 		PeerAddr: l.Addr().String(),
 	}
 
-	t.Run("receive update", testutil.WithHAProxy(cfg, func(t *testing.T) {
+	t.Run("receive update", func(t *testing.T) {
+		cfg.Run(t)
+
 		for i := 0; i < 10; i++ {
 			_, err := http.Get("http://127.0.0.1:" + cfg.FrontendPort)
 			if err != nil {
@@ -60,5 +62,5 @@ backend st_src_global
 		case <-tm.C:
 			t.Error("timeout")
 		}
-	}))
+	})
 }

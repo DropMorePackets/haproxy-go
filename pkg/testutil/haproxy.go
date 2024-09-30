@@ -28,6 +28,7 @@ defaults
 frontend test
     mode http
     bind 127.0.0.1:{{ .FrontendPort }}
+    bind unix@{{ .FrontendSocket }} accept-proxy
 
 {{- if .EngineConfigFile }}
     filter spoe engine e2e config {{ .EngineConfigFile }}
@@ -90,93 +91,102 @@ type HAProxyConfig struct {
 	CustomConfig         string
 }
 
-func mustExecuteTemplate(t *testing.T, text string, data any) string {
-	tmpl, err := template.New("").Parse(text)
-	if err != nil {
-		t.Fatal(err)
+func (cfg HAProxyConfig) Run(tb testing.TB) string {
+	tb.Helper()
+
+	if cfg.EngineConfig == "" {
+		cfg.EngineConfig = haproxyEngineConfig
 	}
 
-	var tmplBuf bytes.Buffer
-	if err := tmpl.Execute(&tmplBuf, data); err != nil {
-		t.Fatal(err)
-	}
-
-	return tmplBuf.String()
-}
-
-func WithHAProxy(cfg HAProxyConfig, f func(t *testing.T)) func(t *testing.T) {
-	return func(t *testing.T) {
-		if cfg.EngineConfig == "" {
-			cfg.EngineConfig = haproxyEngineConfig
-		}
-
-		if cfg.BackendConfig == "" {
-			cfg.BackendConfig = `
+	if cfg.BackendConfig == "" {
+		cfg.BackendConfig = `
 http-request return status 200 content-type "text/plain" string "Hello World!\n"
 `
-		}
-
-		type tmplCfg struct {
-			HAProxyConfig
-
-			StatsSocket      string
-			InstanceID       string
-			LocalPeerAddr    string
-			EngineConfigFile string
-		}
-		var tcfg tmplCfg
-		tcfg.HAProxyConfig = cfg
-		tcfg.InstanceID = fmt.Sprintf("instance_%s", cfg.FrontendPort)
-		tcfg.LocalPeerAddr = fmt.Sprintf("127.0.0.1:%d", TCPPort(t))
-		tcfg.StatsSocket = fmt.Sprintf("%s/stats%s.sock", os.TempDir(), tcfg.FrontendPort)
-
-		if cfg.EngineAddr != "" {
-			engineConfigFile := TempFile(t, "e2e.cfg", cfg.EngineConfig)
-			tcfg.EngineConfigFile = engineConfigFile
-			defer os.Remove(engineConfigFile)
-		}
-
-		haproxyConfig := mustExecuteTemplate(t, haproxyConfigTemplate, tcfg)
-		haproxyConfigFile := TempFile(t, "haproxy.cfg", haproxyConfig)
-		defer os.Remove(haproxyConfigFile)
-
-		defer func() {
-			if t.Failed() {
-				t.Logf("HAProxy Config: \n%s", haproxyConfig)
-			}
-		}()
-
-		WithProcess("haproxy", []string{"-f", haproxyConfigFile, "-L", tcfg.InstanceID}, func(t *testing.T) {
-			waitOrTimeout(t, time.Second*3, func() {
-				for {
-					l, err := net.Dial("unix", tcfg.StatsSocket)
-					if err != nil {
-						continue
-					}
-					l.Close()
-
-					// if we were able to connect, exit and let the test run
-					break
-				}
-			})
-
-			f(t)
-		})(t)
 	}
-}
 
-func waitOrTimeout(t *testing.T, d time.Duration, f func()) {
+	tmpDir, err := os.MkdirTemp("", fmt.Sprintf("haproxy_%s", cfg.FrontendPort))
+	if err != nil {
+		tb.Fatal(err)
+	}
+	tb.Cleanup(func() {
+		os.RemoveAll(tmpDir)
+	})
+
+	type tmplCfg struct {
+		HAProxyConfig
+
+		StatsSocket      string
+		FrontendSocket   string
+		InstanceID       string
+		LocalPeerAddr    string
+		EngineConfigFile string
+	}
+	var tcfg tmplCfg
+	tcfg.HAProxyConfig = cfg
+	tcfg.InstanceID = fmt.Sprintf("instance_%s", cfg.FrontendPort)
+	tcfg.LocalPeerAddr = fmt.Sprintf("127.0.0.1:%d", TCPPort(tb))
+	tcfg.StatsSocket = fmt.Sprintf("%s/stats.sock", tmpDir)
+	tcfg.FrontendSocket = fmt.Sprintf("%s/frontend.sock", tmpDir)
+
+	if cfg.EngineAddr != "" {
+		engineConfigFile := TempFile(tb, "e2e.cfg", cfg.EngineConfig)
+		tcfg.EngineConfigFile = engineConfigFile
+	}
+
+	haproxyConfig := mustExecuteTemplate(tb, haproxyConfigTemplate, tcfg)
+	haproxyConfigFile := TempFile(tb, "haproxy.cfg", haproxyConfig)
+
+	tb.Cleanup(func() {
+		if tb.Failed() {
+			tb.Logf("HAProxy Config: \n%s", haproxyConfig)
+		}
+	})
+
+	RunProcess(tb, "haproxy", []string{"-f", haproxyConfigFile, "-L", tcfg.InstanceID})
+
 	c := make(chan bool)
 	defer close(c)
 
 	go func() {
-		f()
+		for {
+			l, err := net.Dial("unix", tcfg.StatsSocket)
+			if err != nil {
+				continue
+			}
+			l.Close()
+
+			l, err = net.Dial("unix", tcfg.FrontendSocket)
+			if err != nil {
+				continue
+			}
+			l.Close()
+
+			// if we were able to connect, exit and let the test run
+			break
+		}
 		c <- true
 	}()
 
 	select {
-	case <-time.After(d):
-		t.Fatal("timeout while waiting for haproxy")
+	case <-time.After(3 * time.Second):
+		tb.Fatal("timeout while waiting for haproxy")
 	case <-c:
 	}
+
+	return tcfg.FrontendSocket
+}
+
+func mustExecuteTemplate(tb testing.TB, text string, data any) string {
+	tb.Helper()
+	tmpl, err := template.New("").Parse(text)
+	if err != nil {
+		tb.Fatal(err)
+	}
+
+	var tmplBuf bytes.Buffer
+	if err := tmpl.Execute(&tmplBuf, data); err != nil {
+		tb.Fatal(err)
+	}
+
+	return tmplBuf.String()
 }
