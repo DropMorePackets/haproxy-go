@@ -7,6 +7,7 @@ import (
 	"log"
 	"math"
 	"net"
+	"runtime"
 )
 
 type Agent struct {
@@ -64,9 +65,27 @@ func (a *Agent) Serve(l net.Listener) error {
 			defer nc.Close()
 			defer p.Close()
 
-			if err := p.Serve(); err != nil && !errors.Is(err, p.ctx.Err()) {
+			// don't let panics inside the protocol kill the entire library
+			if err := wrapPanic(p.Serve); err != nil && !errors.Is(err, p.ctx.Err()) {
 				log.Println(err)
 			}
 		}()
 	}
+}
+
+func wrapPanic(fn func() error) (err error) {
+	didPanic := true
+	defer func() {
+		if didPanic {
+			if e := recover(); e != nil {
+				const size = 64 << 10
+				buf := make([]byte, size)
+				buf = buf[:runtime.Stack(buf, false)]
+				err = fmt.Errorf("spop: panic: %v\n%s", e, buf)
+			}
+		}
+	}()
+	err = fn()
+	didPanic = false
+	return
 }

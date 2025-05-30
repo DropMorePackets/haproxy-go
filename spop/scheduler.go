@@ -91,7 +91,11 @@ func newAsyncScheduler() *asyncScheduler {
 func (a *asyncScheduler) queueWorker() {
 	for {
 		qe := a.q.Get()
-		if err := qe.pc.frameHandler(qe.f); err != nil {
+		// Use wrap panic to prevent loosing worker goroutines to panics
+		err := wrapPanic(func() error {
+			return qe.pc.frameHandler(qe.f)
+		})
+		if err != nil {
 			log.Println(err)
 			continue
 		}

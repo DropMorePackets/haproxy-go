@@ -5,7 +5,6 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"runtime"
 	"syscall"
 
 	"github.com/dropmorepackets/haproxy-go/pkg/encoding"
@@ -136,23 +135,6 @@ func (c *protocolClient) onHAProxyHello(f *frame) error {
 	return err
 }
 
-func (c *protocolClient) runHandler(ctx context.Context, w *encoding.ActionWriter, m *encoding.Message, handler HandlerFunc) (err error) {
-	didPanic := true
-	defer func() {
-		if didPanic {
-			if e := recover(); e != nil {
-				const size = 64 << 10
-				buf := make([]byte, size)
-				buf = buf[:runtime.Stack(buf, false)]
-				err = fmt.Errorf("spop: panic serving: %v\n%s", e, buf)
-			}
-		}
-	}()
-	handler(ctx, w, m)
-	didPanic = false
-	return
-}
-
 func (c *protocolClient) onNotify(f *frame) error {
 	s := encoding.AcquireMessageScanner(f.buf.ReadBytes())
 	defer encoding.ReleaseMessageScanner(s)
@@ -162,7 +144,10 @@ func (c *protocolClient) onNotify(f *frame) error {
 
 	fn := func(w *encoding.ActionWriter) error {
 		for s.Next(m) {
-			err := c.runHandler(c.ctx, w, m, c.handler.HandleSPOE)
+			err := wrapPanic(func() error {
+				c.handler.HandleSPOE(c.ctx, w, m)
+				return nil
+			})
 			if err != nil {
 				return err
 			}
