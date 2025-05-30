@@ -31,7 +31,6 @@ type protocolClient struct {
 	maxFrameSize uint32
 
 	gotHello bool
-	lf       frameType
 }
 
 func (c *protocolClient) Close() error {
