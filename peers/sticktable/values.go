@@ -179,8 +179,8 @@ func (v *UnsignedLongLongData) String() string {
 }
 
 type DictData struct {
-	ID    uint64
 	Value []byte
+	ID    uint64
 }
 
 func (f *DictData) String() string {

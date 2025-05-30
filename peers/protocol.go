@@ -155,10 +155,10 @@ type byteReader interface {
 }
 
 type rawMessage struct {
+	Data []byte
+
 	MessageClass MessageClass
 	MessageType  byte
-
-	Data []byte
 }
 
 func (m *rawMessage) ReadFrom(r byteReader) (int64, error) {

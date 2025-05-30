@@ -8,10 +8,10 @@ import (
 )
 
 type Peer struct {
-	Addr          string
 	Handler       Handler
 	HandlerSource func() Handler
 	BaseContext   context.Context
+	Addr          string
 }
 
 func ListenAndServe(addr string, handler Handler) error {

@@ -15,11 +15,11 @@ type DataTypeDefinition struct {
 }
 
 type Definition struct {
-	StickTableID uint64
 	Name         string
-	KeyType      KeyType
-	KeyLength    uint64
 	DataTypes    []DataTypeDefinition
+	KeyType      KeyType
+	StickTableID uint64
+	KeyLength    uint64
 	Expiry       uint64
 }
 
@@ -170,14 +170,15 @@ func (s *Definition) Marshal(b []byte) (int, error) {
 }
 
 type EntryUpdate struct {
-	StickTable        *Definition
-	WithLocalUpdateID bool
-	WithExpiry        bool
+	StickTable *Definition
+	Key        MapKey
+	Data       []MapData
 
-	LocalUpdateID uint32
-	Key           MapKey
-	Data          []MapData
-	Expiry        uint32
+	WithLocalUpdateID bool
+	LocalUpdateID     uint32
+
+	WithExpiry bool
+	Expiry     uint32
 }
 
 func (e *EntryUpdate) String() string {
