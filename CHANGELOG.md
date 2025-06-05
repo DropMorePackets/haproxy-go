@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.0.7](https://github.com/DropMorePackets/haproxy-go/compare/v0.0.6...v0.0.7) (2025-06-05)
+
+
+### Bug Fixes
+
+* **spop:** Disable pipeline and async support ([c12e722](https://github.com/DropMorePackets/haproxy-go/commit/c12e722bc2171bd585d6613d08dcecfb4accbda7))
+
 ## [0.0.6](https://github.com/DropMorePackets/haproxy-go/compare/v0.0.5...v0.0.6) (2025-05-30)
 
 ### CI
