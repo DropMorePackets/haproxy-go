@@ -105,10 +105,11 @@ func (k *KVEntry) ValueAddr() netip.Addr {
 //   - NameEqualBytes: compares with a byte slice using bytes.Equal
 //   - NameEqualUnsafe: compares with a string using unsafe conversion (zero allocation)
 func (k *KVEntry) NameEquals(s string) bool {
-	if len(k.name) != len(s) {
+	n := len(k.name)
+	if n != len(s) {
 		return false
 	}
-	for i := 0; i < len(k.name); i++ {
+	for i := 0; i < n; i++ {
 		if k.name[i] != s[i] {
 			return false
 		}
@@ -125,10 +126,11 @@ func (k *KVEntry) NameEqualBytes(b []byte) bool {
 // to avoid allocating a string from the byte slice. The unsafe conversion creates a
 // string header pointing to the same underlying data, and string comparison compares content, not pointers.
 func (k *KVEntry) NameEqualUnsafe(s string) bool {
-	if len(k.name) != len(s) {
+	n := len(k.name)
+	if n != len(s) {
 		return false
 	}
-	if len(k.name) == 0 {
+	if n == 0 {
 		// Both are empty (lengths match), so they're equal
 		return true
 	}
