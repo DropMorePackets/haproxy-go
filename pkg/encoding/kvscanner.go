@@ -1,10 +1,12 @@
 package encoding
 
 import (
+	"bytes"
 	"fmt"
 	"net"
 	"net/netip"
 	"sync"
+	"unsafe"
 )
 
 var kvEntryPool = sync.Pool{
@@ -98,9 +100,42 @@ func (k *KVEntry) ValueAddr() netip.Addr {
 	return addr
 }
 
+// NameEquals compares the name bytes with the given string without allocation.
+// It performs a manual byte-by-byte comparison. For alternatives:
+//   - NameEqualBytes: compares with a byte slice using bytes.Equal
+//   - NameEqualUnsafe: compares with a string using unsafe conversion (zero allocation)
 func (k *KVEntry) NameEquals(s string) bool {
-	// bytes.Equal describes this operation as alloc free
-	return string(k.name) == s
+	if len(k.name) != len(s) {
+		return false
+	}
+	for i := 0; i < len(k.name); i++ {
+		if k.name[i] != s[i] {
+			return false
+		}
+	}
+	return true
+}
+
+// NameEqualBytes compares the name bytes with the given byte slice using bytes.Equal
+func (k *KVEntry) NameEqualBytes(b []byte) bool {
+	return bytes.Equal(k.name, b)
+}
+
+// NameEqualUnsafe compares the name bytes with the given string using unsafe conversion
+// to avoid allocating a string from the byte slice. The unsafe conversion creates a
+// string header pointing to the same underlying data, and string comparison compares content, not pointers.
+func (k *KVEntry) NameEqualUnsafe(s string) bool {
+	if len(k.name) != len(s) {
+		return false
+	}
+	if len(k.name) == 0 {
+		// Both are empty (lengths match), so they're equal
+		return true
+	}
+	// Convert byte slice to string without allocation using unsafe
+	// This creates a string that shares the same underlying data
+	nameStr := *(*string)(unsafe.Pointer(&k.name))
+	return nameStr == s
 }
 
 func (k *KVEntry) Type() DataType {
