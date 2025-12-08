@@ -111,7 +111,8 @@ func (c *protocolClient) onHAProxyHello(f *frame) error {
 			}
 
 		case k.NameEquals(helloKeyEngineID):
-			//TODO: This does copy the engine id but yolo?
+			// Engine ID allocation is necessary since we need to store it beyond the lifetime
+			// of the KVEntry/Scanner. The underlying bytes will be reused by the frame pool.
 			c.engineID = string(k.ValueBytes())
 		//case k.NameEquals(helloKeySupportedVersions):
 		//case k.NameEquals(helloKeyCapabilities):
@@ -183,14 +184,14 @@ func (c *protocolClient) onHAProxyDisconnect(f *frame) error {
 	)
 
 	for s.Next(k) {
-		switch name := string(k.NameBytes()); name {
-		case "status-code":
+		switch {
+		case k.NameEquals("status-code"):
 			code = errorCode(k.ValueInt())
-		case "message":
+		case k.NameEquals("message"):
 			// We don't really care about the message since they should all be
 			// defined in the errorCode type.
 		default:
-			panic("unexpected kv entry: " + name)
+			return fmt.Errorf("unexpected kv entry in disconnect frame: %q", k.NameBytes())
 		}
 	}
 
