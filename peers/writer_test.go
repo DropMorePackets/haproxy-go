@@ -23,7 +23,7 @@ func helperDialPeer(t *testing.T, addr, localPeer, remotePeer string) net.Conn {
 
 	h := NewHandshake(remotePeer)
 	h.LocalPeerIdentifier = localPeer
-	if _, err := h.WriteTo(conn); err != nil {
+	if _, err = h.WriteTo(conn); err != nil {
 		conn.Close()
 		t.Fatalf("writing handshake: %v", err)
 	}
