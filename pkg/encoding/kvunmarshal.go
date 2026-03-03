@@ -43,11 +43,11 @@ func (k *KVScanner) Unmarshal(v any) error {
 
 	// Build a slice of field info to avoid string allocations during lookup
 	type fieldInfo struct {
-		keyStr    string // cached for NameEquals and error messages
-		fieldIdx  int
 		field     reflect.Value // cached to avoid repeated rv.Field() calls
-		fieldKind reflect.Kind  // cached to avoid repeated Kind() calls
-		isPointer bool          // cached to avoid repeated checks
+		keyStr    string        // cached for NameEquals and error messages
+		fieldIdx  int
+		fieldKind reflect.Kind // cached to avoid repeated Kind() calls
+		isPointer bool         // cached to avoid repeated checks
 	}
 	fields := make([]fieldInfo, 0, rt.NumField())
 	pointerFieldIndices := make([]int, 0, rt.NumField()) // track pointer field indices for final cleanup
