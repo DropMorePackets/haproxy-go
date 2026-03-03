@@ -236,7 +236,9 @@ func (t StickTableUpdateMessageType) OnMessage(m *rawMessage, c *protocolClient)
 		log.Printf("not implemented: %s", t)
 		return nil
 	case StickTableUpdateMessageTypeUpdateAcknowledge:
-		log.Printf("not implemented: %s", t)
+		// HAProxy sends ack messages after receiving our pushed updates.
+		// The ack contains the remote table ID and last committed update ID.
+		// We currently don't track these, so just accept silently.
 		return nil
 	case StickTableUpdateMessageTypeEntryUpdate,
 		StickTableUpdateMessageTypeUpdateTimed,

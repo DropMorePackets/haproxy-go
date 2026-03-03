@@ -239,3 +239,79 @@ backend st_timed
 		}
 	})
 }
+
+func TestE2EWriterBulkEntries(t *testing.T) {
+	writerCh := make(chan *Writer, 1)
+	a := Peer{HandlerSource: func() Handler {
+		return &writerE2EHandler{writerCh: writerCh}
+	}}
+
+	l := testutil.TCPListener(t)
+	go a.Serve(l)
+
+	cfg := testutil.HAProxyConfig{
+		FrontendPort: fmt.Sprintf("%d", testutil.TCPPort(t)),
+		CustomConfig: `
+backend st_bulk
+	stick-table type ip size 200k expire 5m peers mypeers
+`,
+		BackendConfig: `
+	http-request return status 200 content-type "text/plain" hdr X-Count %[table_cnt(st_bulk)] string "OK\n"
+`,
+		PeerAddr: l.Addr().String(),
+	}
+
+	t.Run("push 20 entries", func(t *testing.T) {
+		cfg.Run(t)
+
+		var w *Writer
+		select {
+		case w = <-writerCh:
+		case <-time.After(5 * time.Second):
+			t.Fatal("timeout waiting for HAProxy peer connection")
+		}
+
+		time.Sleep(500 * time.Millisecond)
+
+		tableDef := &sticktable.Definition{
+			StickTableID: 0,
+			Name:         "st_bulk",
+			KeyType:      sticktable.KeyTypeIPv4Address,
+			KeyLength:    4,
+			Expiry:       300000,
+		}
+
+		if err := w.SendTableDefinition(tableDef); err != nil {
+			t.Fatal(err)
+		}
+
+		for i := 0; i < 20; i++ {
+			ip := netip.AddrFrom4([4]byte{10, 0, 0, byte(i + 1)})
+			key := sticktable.IPv4AddressKey(ip)
+			entry := &sticktable.EntryUpdate{
+				StickTable: tableDef,
+				Key:        &key,
+				WithExpiry: true,
+				Expiry:     60000,
+			}
+			if err := w.SendEntry(entry); err != nil {
+				t.Fatalf("sending entry %d (%s): %v", i, ip, err)
+			}
+		}
+
+		time.Sleep(1 * time.Second)
+
+		resp, err := http.Get("http://127.0.0.1:" + cfg.FrontendPort)
+		if err != nil {
+			t.Fatal(err)
+		}
+		resp.Body.Close()
+
+		xcount := resp.Header.Get("X-Count")
+		t.Logf("X-Count: %s", xcount)
+
+		if xcount != "20" {
+			t.Errorf("expected X-Count=20, got %q", xcount)
+		}
+	})
+}
