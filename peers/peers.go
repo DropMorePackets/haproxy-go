@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"log"
 	"net"
+	"sync"
 )
 
 type Peer struct {
@@ -59,8 +60,9 @@ func (a *Peer) Serve(l net.Listener) error {
 		// Wrap the context to provide access to the underlying connection.
 		// TODO(tim): Do we really want this?
 		ctx := context.WithValue(a.BaseContext, connectionKey, nc)
-		ctx = context.WithValue(ctx, writerKey, newWriter(nc))
-		p := newProtocolClient(ctx, nc, a.HandlerSource())
+		wmu := &sync.Mutex{}
+		ctx = context.WithValue(ctx, writerKey, newWriter(nc, wmu))
+		p := newProtocolClient(ctx, nc, a.HandlerSource(), wmu)
 		go func() {
 			defer nc.Close()
 			defer p.Close()

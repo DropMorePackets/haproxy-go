@@ -1,6 +1,7 @@
 package peers
 
 import (
+	"encoding/binary"
 	"fmt"
 	"io"
 	"sync"
@@ -14,13 +15,13 @@ import (
 // using WriterFromContext.
 type Writer struct {
 	w  io.Writer
-	mu sync.Mutex
+	mu *sync.Mutex
 
 	nextUpdateID uint32
 }
 
-func newWriter(w io.Writer) *Writer {
-	return &Writer{w: w}
+func newWriter(w io.Writer, mu *sync.Mutex) *Writer {
+	return &Writer{w: w, mu: mu}
 }
 
 // writeMessage writes a peer protocol message. Messages with type >= 128
@@ -46,8 +47,20 @@ func (w *Writer) writeMessage(class MessageClass, msgType byte, data []byte) err
 	copy(msg[2:], lenBuf[:lenBytes])
 	copy(msg[2+lenBytes:], data)
 
-	_, err := w.w.Write(msg)
-	return err
+	// Write the full message, handling short writes.
+	written := 0
+	for written < len(msg) {
+		n, err := w.w.Write(msg[written:])
+		if err != nil {
+			return err
+		}
+		if n == 0 {
+			return io.ErrShortWrite
+		}
+		written += n
+	}
+
+	return nil
 }
 
 // SendTableDefinition sends a stick table definition message.
@@ -89,24 +102,50 @@ func (w *Writer) SendTableSwitch(tableID uint64) error {
 //   - WithExpiry=false: Entry Update (0x80)
 //   - WithExpiry=true:  Update Timed (0x85)
 func (w *Writer) SendEntry(entry *sticktable.EntryUpdate) error {
-	entry.WithLocalUpdateID = true
-	entry.LocalUpdateID = w.nextUpdateID
+	w.mu.Lock()
+	updateID := w.nextUpdateID
 	w.nextUpdateID++
+	w.mu.Unlock()
 
 	msgType := StickTableUpdateMessageTypeEntryUpdate
 	if entry.WithExpiry {
 		msgType = StickTableUpdateMessageTypeUpdateTimed
 	}
 
+	// Marshal into a local buffer with the update ID prepended,
+	// without mutating the caller's entry.
 	var buf [65536]byte
-	n, err := entry.Marshal(buf[:])
+	offset := 0
+
+	// Write the update ID (always included for full updates).
+	binary.BigEndian.PutUint32(buf[offset:], updateID)
+	offset += 4
+
+	// Write the expiry if present.
+	if entry.WithExpiry {
+		binary.BigEndian.PutUint32(buf[offset:], entry.Expiry)
+		offset += 4
+	}
+
+	// Marshal the key.
+	n, err := entry.Key.Marshal(buf[offset:], entry.StickTable.KeyLength)
+	offset += n
 	if err != nil {
-		return fmt.Errorf("marshaling entry update: %w", err)
+		return fmt.Errorf("marshaling entry key: %w", err)
+	}
+
+	// Marshal the data values.
+	for _, data := range entry.Data {
+		n, err := data.Marshal(buf[offset:])
+		offset += n
+		if err != nil {
+			return fmt.Errorf("marshaling entry data: %w", err)
+		}
 	}
 
 	return w.writeMessage(
 		MessageClassStickTableUpdates,
 		byte(msgType),
-		buf[:n],
+		buf[:offset],
 	)
 }

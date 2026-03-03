@@ -1,10 +1,12 @@
 package peers
 
 import (
+	"bufio"
 	"context"
 	"fmt"
 	"net"
 	"net/netip"
+	"sync"
 	"testing"
 	"time"
 
@@ -28,18 +30,17 @@ func helperDialPeer(t *testing.T, addr, localPeer, remotePeer string) net.Conn {
 		t.Fatalf("writing handshake: %v", err)
 	}
 
-	// Read the status line
-	buf := make([]byte, 64)
-	n, err := conn.Read(buf)
+	br := bufio.NewReader(conn)
+	line, err := br.ReadString('\n')
 	if err != nil {
 		conn.Close()
 		t.Fatalf("reading handshake status: %v", err)
 	}
 
 	var status int
-	if _, err := fmt.Sscanf(string(buf[:n]), "%d\n", &status); err != nil {
+	if _, err = fmt.Sscanf(line, "%d\n", &status); err != nil {
 		conn.Close()
-		t.Fatalf("parsing status %q: %v", string(buf[:n]), err)
+		t.Fatalf("parsing status %q: %v", line, err)
 	}
 
 	if HandshakeStatus(status) != HandshakeStatusHandshakeSucceeded {
@@ -269,7 +270,7 @@ func TestWriterRoundTrip(t *testing.T) {
 	conn := helperDialPeer(t, l.Addr().String(), "peer_a", "peer_b")
 	defer conn.Close()
 
-	w := newWriter(conn)
+	w := newWriter(conn, &sync.Mutex{})
 
 	tableDef := &sticktable.Definition{
 		StickTableID: 0,

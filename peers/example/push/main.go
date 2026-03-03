@@ -7,6 +7,7 @@ package main
 import (
 	"context"
 	"log"
+	"net/netip"
 
 	"github.com/dropmorepackets/haproxy-go/peers"
 	"github.com/dropmorepackets/haproxy-go/peers/sticktable"
@@ -40,7 +41,7 @@ func main() {
 		}
 
 		// Push an entry marking an IP as blocked (gpc0 = 1).
-		key := sticktable.StringKey("10.0.0.1") // for type ip tables, use sticktable.IPv4AddressKey instead
+		key := sticktable.IPv4AddressKey(netip.MustParseAddr("10.0.0.1"))
 		gpc0 := sticktable.UnsignedIntegerData(1)
 		entry := &sticktable.EntryUpdate{
 			StickTable: tableDef,
