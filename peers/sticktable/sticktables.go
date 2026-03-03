@@ -209,7 +209,7 @@ func (e *EntryUpdate) Marshal(b []byte) (int, error) {
 	}
 
 	for _, data := range e.Data {
-		n, err := data.Unmarshal(b[offset:])
+		n, err := data.Marshal(b[offset:])
 		offset += n
 		if err != nil {
 			return offset, err
