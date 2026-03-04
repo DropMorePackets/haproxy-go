@@ -184,7 +184,7 @@ func (w *Writer) SendEntry(entry *sticktable.EntryUpdate) error {
 		return fmt.Errorf("marshaling entry update: %w", err)
 	}
 
-	if err := w.writeMessageLocked(
+	if err = w.writeMessageLocked(
 		MessageClassStickTableUpdates,
 		byte(msgType),
 		w.buf[:offset],
