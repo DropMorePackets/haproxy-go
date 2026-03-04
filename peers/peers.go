@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"log"
 	"net"
+	"sync"
 )
 
 type Peer struct {
@@ -59,7 +60,10 @@ func (a *Peer) Serve(l net.Listener) error {
 		// Wrap the context to provide access to the underlying connection.
 		// TODO(tim): Do we really want this?
 		ctx := context.WithValue(a.BaseContext, connectionKey, nc)
-		p := newProtocolClient(ctx, nc, a.HandlerSource())
+		wmu := &sync.Mutex{}
+		w := newWriter(nc, wmu)
+		ctx = context.WithValue(ctx, writerKey, w)
+		p := newProtocolClient(ctx, nc, a.HandlerSource(), wmu, w.bufferedWriter())
 		go func() {
 			defer nc.Close()
 			defer p.Close()
@@ -75,10 +79,19 @@ type contextKey string
 
 const (
 	connectionKey = contextKey("connection")
+	writerKey     = contextKey("writer")
 )
 
 // Connection returns the underlying connection used in calls
 // to function in a Handler.
 func Connection(ctx context.Context) net.Conn {
 	return ctx.Value(connectionKey).(net.Conn)
+}
+
+// WriterFromContext returns the Writer associated with the current peer
+// connection. Use this inside a Handler to push stick table updates back
+// to HAProxy over the same connection that HAProxy established to us.
+// Panics if called outside a handler context.
+func WriterFromContext(ctx context.Context) *Writer {
+	return ctx.Value(writerKey).(*Writer)
 }

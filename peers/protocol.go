@@ -8,6 +8,7 @@ import (
 	"io"
 	"log"
 	"net"
+	"sync"
 	"time"
 
 	"github.com/dropmorepackets/haproxy-go/peers/sticktable"
@@ -19,6 +20,8 @@ type protocolClient struct {
 	ctxCancel context.CancelFunc
 	rw        io.ReadWriter
 	br        *bufio.Reader
+	bw        *bufio.Writer
+	wmu       *sync.Mutex
 
 	nextHeartbeat       *time.Ticker
 	lastMessageTimer    *time.Timer
@@ -28,11 +31,13 @@ type protocolClient struct {
 	handler Handler
 }
 
-func newProtocolClient(ctx context.Context, rw io.ReadWriter, handler Handler) *protocolClient {
+func newProtocolClient(ctx context.Context, rw io.ReadWriter, handler Handler, wmu *sync.Mutex, bw *bufio.Writer) *protocolClient {
 	var c protocolClient
 	c.rw = rw
 	c.br = bufio.NewReader(rw)
+	c.bw = bw
 	c.handler = handler
+	c.wmu = wmu
 	c.ctx, c.ctxCancel = context.WithCancel(ctx)
 	return &c
 }
@@ -46,6 +51,16 @@ func (c *protocolClient) Close() error {
 	return c.handler.Close()
 }
 
+func (c *protocolClient) lockedWrite(data []byte) (int, error) {
+	c.wmu.Lock()
+	defer c.wmu.Unlock()
+	n, err := c.bw.Write(data)
+	if err != nil {
+		return n, err
+	}
+	return n, c.bw.Flush()
+}
+
 func (c *protocolClient) peerHandshake() error {
 	var h Handshake
 	if _, err := h.ReadFrom(c.br); err != nil {
@@ -54,7 +69,7 @@ func (c *protocolClient) peerHandshake() error {
 
 	c.handler.HandleHandshake(c.ctx, &h)
 
-	if _, err := c.rw.Write([]byte(fmt.Sprintf("%d\n", HandshakeStatusHandshakeSucceeded))); err != nil {
+	if _, err := c.lockedWrite([]byte(fmt.Sprintf("%d\n", HandshakeStatusHandshakeSucceeded))); err != nil {
 		return fmt.Errorf("handshake failed: %v", err)
 	}
 
@@ -90,7 +105,7 @@ func (c *protocolClient) resetLastMessage() {
 
 func (c *protocolClient) heartbeat() {
 	for range c.nextHeartbeat.C {
-		_, err := c.rw.Write([]byte{byte(MessageClassControl), byte(ControlMessageHeartbeat)})
+		_, err := c.lockedWrite([]byte{byte(MessageClassControl), byte(ControlMessageHeartbeat)})
 		if err != nil {
 			_ = c.Close()
 			return
@@ -207,7 +222,7 @@ func (t ErrorMessageType) OnMessage(m *rawMessage, c *protocolClient) error {
 func (t ControlMessageType) OnMessage(m *rawMessage, c *protocolClient) error {
 	switch t {
 	case ControlMessageSyncRequest:
-		_, _ = c.rw.Write([]byte{byte(MessageClassControl), byte(ControlMessageSyncPartial)})
+		_, _ = c.lockedWrite([]byte{byte(MessageClassControl), byte(ControlMessageSyncPartial)})
 		return nil
 	case ControlMessageSyncFinished:
 		return nil
@@ -236,7 +251,9 @@ func (t StickTableUpdateMessageType) OnMessage(m *rawMessage, c *protocolClient)
 		log.Printf("not implemented: %s", t)
 		return nil
 	case StickTableUpdateMessageTypeUpdateAcknowledge:
-		log.Printf("not implemented: %s", t)
+		// HAProxy sends ack messages after receiving our pushed updates.
+		// The ack contains the remote table ID and last committed update ID.
+		// We currently don't track these, so just accept silently.
 		return nil
 	case StickTableUpdateMessageTypeEntryUpdate,
 		StickTableUpdateMessageTypeUpdateTimed,
