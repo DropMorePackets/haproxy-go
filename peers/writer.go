@@ -1,6 +1,7 @@
 package peers
 
 import (
+	"bufio"
 	"encoding/binary"
 	"fmt"
 	"io"
@@ -14,22 +15,48 @@ import (
 // It is safe for concurrent use. Obtain a Writer from a handler's context
 // using WriterFromContext.
 type Writer struct {
-	w  io.Writer
-	mu *sync.Mutex
+	bw  *bufio.Writer
+	mu  *sync.Mutex
+	buf []byte // reusable scratch buffer for marshaling
 
 	nextUpdateID uint32
 }
 
 func newWriter(w io.Writer, mu *sync.Mutex) *Writer {
-	return &Writer{w: w, mu: mu}
+	bw := bufio.NewWriterSize(w, 64*1024)
+	return &Writer{
+		bw:  bw,
+		mu:  mu,
+		buf: make([]byte, 65536),
+	}
+}
+
+// bufferedWriter returns the underlying bufio.Writer so the protocol
+// client can share the same buffered output (under the shared mutex).
+func (w *Writer) bufferedWriter() *bufio.Writer {
+	return w.bw
+}
+
+// Flush flushes any buffered data to the underlying connection.
+// The caller must hold the mutex or call this after a batch of writes.
+func (w *Writer) Flush() error {
+	w.mu.Lock()
+	defer w.mu.Unlock()
+	return w.bw.Flush()
 }
 
 // writeMessage writes a peer protocol message. Messages with type >= 128
 // include a varint-encoded data length prefix before the payload.
+// Caller must NOT hold the mutex — this method acquires it.
 func (w *Writer) writeMessage(class MessageClass, msgType byte, data []byte) error {
 	w.mu.Lock()
 	defer w.mu.Unlock()
+	return w.writeMessageLocked(class, msgType, data)
+}
 
+// writeMessageLocked writes a peer protocol message.
+// Caller MUST hold the mutex.
+func (w *Writer) writeMessageLocked(class MessageClass, msgType byte, data []byte) error {
 	var lenBuf [10]byte
 	var lenBytes int
 	if msgType >= 128 {
@@ -40,24 +67,23 @@ func (w *Writer) writeMessage(class MessageClass, msgType byte, data []byte) err
 		lenBytes = n
 	}
 
-	// Build the complete message in a single buffer to send atomically.
-	msg := make([]byte, 2+lenBytes+len(data))
-	msg[0] = byte(class)
-	msg[1] = msgType
-	copy(msg[2:], lenBuf[:lenBytes])
-	copy(msg[2+lenBytes:], data)
+	// Write header (class + type)
+	if _, err := w.bw.Write([]byte{byte(class), msgType}); err != nil {
+		return err
+	}
 
-	// Write the full message, handling short writes.
-	written := 0
-	for written < len(msg) {
-		n, err := w.w.Write(msg[written:])
-		if err != nil {
+	// Write length prefix if present
+	if lenBytes > 0 {
+		if _, err := w.bw.Write(lenBuf[:lenBytes]); err != nil {
 			return err
 		}
-		if n == 0 {
-			return io.ErrShortWrite
+	}
+
+	// Write payload
+	if len(data) > 0 {
+		if _, err := w.bw.Write(data); err != nil {
+			return err
 		}
-		written += n
 	}
 
 	return nil
@@ -73,11 +99,15 @@ func (w *Writer) SendTableDefinition(def *sticktable.Definition) error {
 		return fmt.Errorf("marshaling table definition: %w", err)
 	}
 
-	return w.writeMessage(
+	if err := w.writeMessage(
 		MessageClassStickTableUpdates,
 		byte(StickTableUpdateMessageTypeStickTableDefinition),
 		buf[:n],
-	)
+	); err != nil {
+		return err
+	}
+
+	return w.Flush()
 }
 
 // SendTableSwitch sends a table switch message to select a previously
@@ -89,11 +119,46 @@ func (w *Writer) SendTableSwitch(tableID uint64) error {
 		return fmt.Errorf("encoding table ID: %w", err)
 	}
 
-	return w.writeMessage(
+	if err := w.writeMessage(
 		MessageClassStickTableUpdates,
 		byte(StickTableUpdateMessageTypeStickTableSwitch),
 		buf[:n],
-	)
+	); err != nil {
+		return err
+	}
+
+	return w.Flush()
+}
+
+// marshalEntry marshals a single entry update into buf and returns the
+// byte count. The updateID is written first, followed by optional expiry,
+// key and data values.
+func marshalEntry(buf []byte, entry *sticktable.EntryUpdate, updateID uint32) (int, error) {
+	offset := 0
+
+	binary.BigEndian.PutUint32(buf[offset:], updateID)
+	offset += 4
+
+	if entry.WithExpiry {
+		binary.BigEndian.PutUint32(buf[offset:], entry.Expiry)
+		offset += 4
+	}
+
+	n, err := entry.Key.Marshal(buf[offset:], entry.StickTable.KeyLength)
+	offset += n
+	if err != nil {
+		return offset, fmt.Errorf("marshaling entry key: %w", err)
+	}
+
+	for _, data := range entry.Data {
+		n, err := data.Marshal(buf[offset:])
+		offset += n
+		if err != nil {
+			return offset, fmt.Errorf("marshaling entry data: %w", err)
+		}
+	}
+
+	return offset, nil
 }
 
 // SendEntry sends a stick table entry update with an automatically
@@ -101,51 +166,68 @@ func (w *Writer) SendTableSwitch(tableID uint64) error {
 // WithExpiry flag:
 //   - WithExpiry=false: Entry Update (0x80)
 //   - WithExpiry=true:  Update Timed (0x85)
+//
+// Note: for bulk operations, prefer SendEntries which batches writes and flushes once.
 func (w *Writer) SendEntry(entry *sticktable.EntryUpdate) error {
 	w.mu.Lock()
 	updateID := w.nextUpdateID
 	w.nextUpdateID++
-	w.mu.Unlock()
 
 	msgType := StickTableUpdateMessageTypeEntryUpdate
 	if entry.WithExpiry {
 		msgType = StickTableUpdateMessageTypeUpdateTimed
 	}
 
-	// Marshal into a local buffer with the update ID prepended,
-	// without mutating the caller's entry.
-	var buf [65536]byte
-	offset := 0
-
-	// Write the update ID (always included for full updates).
-	binary.BigEndian.PutUint32(buf[offset:], updateID)
-	offset += 4
-
-	// Write the expiry if present.
-	if entry.WithExpiry {
-		binary.BigEndian.PutUint32(buf[offset:], entry.Expiry)
-		offset += 4
-	}
-
-	// Marshal the key.
-	n, err := entry.Key.Marshal(buf[offset:], entry.StickTable.KeyLength)
-	offset += n
+	offset, err := marshalEntry(w.buf, entry, updateID)
 	if err != nil {
-		return fmt.Errorf("marshaling entry key: %w", err)
+		w.mu.Unlock()
+		return fmt.Errorf("marshaling entry update: %w", err)
 	}
 
-	// Marshal the data values.
-	for _, data := range entry.Data {
-		n, err := data.Marshal(buf[offset:])
-		offset += n
+	if err := w.writeMessageLocked(
+		MessageClassStickTableUpdates,
+		byte(msgType),
+		w.buf[:offset],
+	); err != nil {
+		w.mu.Unlock()
+		return err
+	}
+
+	err = w.bw.Flush()
+	w.mu.Unlock()
+	return err
+}
+
+// SendEntries sends multiple stick table entry updates in a single
+// locked batch. This is significantly faster than calling SendEntry
+// in a loop because it acquires the mutex once, marshals and writes
+// all entries into the buffer, then flushes once.
+func (w *Writer) SendEntries(entries []*sticktable.EntryUpdate) error {
+	w.mu.Lock()
+	defer w.mu.Unlock()
+
+	for _, entry := range entries {
+		updateID := w.nextUpdateID
+		w.nextUpdateID++
+
+		msgType := StickTableUpdateMessageTypeEntryUpdate
+		if entry.WithExpiry {
+			msgType = StickTableUpdateMessageTypeUpdateTimed
+		}
+
+		offset, err := marshalEntry(w.buf, entry, updateID)
 		if err != nil {
-			return fmt.Errorf("marshaling entry data: %w", err)
+			return fmt.Errorf("marshaling entry update: %w", err)
+		}
+
+		if err := w.writeMessageLocked(
+			MessageClassStickTableUpdates,
+			byte(msgType),
+			w.buf[:offset],
+		); err != nil {
+			return err
 		}
 	}
 
-	return w.writeMessage(
-		MessageClassStickTableUpdates,
-		byte(msgType),
-		buf[:offset],
-	)
+	return w.bw.Flush()
 }

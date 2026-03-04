@@ -61,8 +61,9 @@ func (a *Peer) Serve(l net.Listener) error {
 		// TODO(tim): Do we really want this?
 		ctx := context.WithValue(a.BaseContext, connectionKey, nc)
 		wmu := &sync.Mutex{}
-		ctx = context.WithValue(ctx, writerKey, newWriter(nc, wmu))
-		p := newProtocolClient(ctx, nc, a.HandlerSource(), wmu)
+		w := newWriter(nc, wmu)
+		ctx = context.WithValue(ctx, writerKey, w)
+		p := newProtocolClient(ctx, nc, a.HandlerSource(), wmu, w.bufferedWriter())
 		go func() {
 			defer nc.Close()
 			defer p.Close()

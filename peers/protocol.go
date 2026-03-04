@@ -20,6 +20,7 @@ type protocolClient struct {
 	ctxCancel context.CancelFunc
 	rw        io.ReadWriter
 	br        *bufio.Reader
+	bw        *bufio.Writer
 	wmu       *sync.Mutex
 
 	nextHeartbeat       *time.Ticker
@@ -30,10 +31,11 @@ type protocolClient struct {
 	handler Handler
 }
 
-func newProtocolClient(ctx context.Context, rw io.ReadWriter, handler Handler, wmu *sync.Mutex) *protocolClient {
+func newProtocolClient(ctx context.Context, rw io.ReadWriter, handler Handler, wmu *sync.Mutex, bw *bufio.Writer) *protocolClient {
 	var c protocolClient
 	c.rw = rw
 	c.br = bufio.NewReader(rw)
+	c.bw = bw
 	c.handler = handler
 	c.wmu = wmu
 	c.ctx, c.ctxCancel = context.WithCancel(ctx)
@@ -52,7 +54,11 @@ func (c *protocolClient) Close() error {
 func (c *protocolClient) lockedWrite(data []byte) (int, error) {
 	c.wmu.Lock()
 	defer c.wmu.Unlock()
-	return c.rw.Write(data)
+	n, err := c.bw.Write(data)
+	if err != nil {
+		return n, err
+	}
+	return n, c.bw.Flush()
 }
 
 func (c *protocolClient) peerHandshake() error {
