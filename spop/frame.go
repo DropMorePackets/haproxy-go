@@ -55,6 +55,10 @@ func (f *frame) ReadFrom(r io.Reader) (int64, error) {
 	}
 	frameLen := binary.BigEndian.Uint32(f.length)
 
+	if frameLen > maxFrameSize {
+		return int64(len(f.length)), fmt.Errorf("frame length %d exceeds maximum %d", frameLen, maxFrameSize)
+	}
+
 	f.buf.Reset()
 	dataBuf := f.buf.WriteNBytes(int(frameLen))
 
