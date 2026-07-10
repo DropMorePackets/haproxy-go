@@ -16,7 +16,8 @@ func TestProtocolMaxFrameSizeOffer(t *testing.T) {
 		wantErr bool
 	}{
 		{name: "at current limit", offer: uint32(maxFrameSize)},
-		{name: "above current limit", offer: uint32(maxFrameSize) + 1, wantErr: true},
+		{name: "above current limit", offer: 262140, wantErr: true},
+		{name: "maximum uint32", offer: ^uint32(0), wantErr: true},
 	}
 
 	for _, tt := range tests {
@@ -44,11 +45,38 @@ func TestProtocolMaxFrameSizeOffer(t *testing.T) {
 			if client.maxFrameSize != tt.offer {
 				t.Fatalf("expected negotiated size %d, got %d", tt.offer, client.maxFrameSize)
 			}
-			if rw.Len() == 0 {
-				t.Fatal("expected AGENT-HELLO response")
+			if got := agentHelloMaxFrameSize(t, &rw); got != tt.offer {
+				t.Fatalf("expected AGENT-HELLO size %d, got %d", tt.offer, got)
 			}
 		})
 	}
+}
+
+func agentHelloMaxFrameSize(t *testing.T, rw *bytes.Buffer) uint32 {
+	t.Helper()
+	f := acquireFrame()
+	defer releaseFrame(f)
+	if _, err := f.ReadFrom(rw); err != nil {
+		t.Fatalf("read AGENT-HELLO: %v", err)
+	}
+	if f.frameType != frameTypeIDAgentHello {
+		t.Fatalf("expected AGENT-HELLO, got frame type %d", f.frameType)
+	}
+
+	s := encoding.AcquireKVScanner(f.buf.ReadBytes(), -1)
+	defer encoding.ReleaseKVScanner(s)
+	k := encoding.AcquireKVEntry()
+	defer encoding.ReleaseKVEntry(k)
+	for s.Next(k) {
+		if k.NameEquals(helloKeyMaxFrameSize) {
+			return uint32(k.ValueInt())
+		}
+	}
+	if err := s.Error(); err != nil {
+		t.Fatalf("scan AGENT-HELLO: %v", err)
+	}
+	t.Fatal("AGENT-HELLO missing max-frame-size")
+	return 0
 }
 
 func testHelloFrame(t *testing.T, offer uint32) *frame {
