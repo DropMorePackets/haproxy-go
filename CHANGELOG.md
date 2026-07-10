@@ -1,5 +1,17 @@
 # Changelog
 
+## [0.1.0](https://github.com/DropMorePackets/haproxy-go/compare/v0.0.8...v0.1.0) (2026-07-10)
+
+
+### Features
+
+* add KV unmarshal feature with struct tag support ([2b5523a](https://github.com/DropMorePackets/haproxy-go/commit/2b5523a8b13327c33da01a956ba72525fcc7e519))
+
+
+### Bug Fixes
+
+* reject frames exceeding maxFrameSize ([ea665cb](https://github.com/DropMorePackets/haproxy-go/commit/ea665cb661342ae4c67194fea71c4e6bd0f9eaa8))
+
 ## [0.0.8](https://github.com/DropMorePackets/haproxy-go/compare/v0.0.7...v0.0.8) (2026-01-31)
 
 
