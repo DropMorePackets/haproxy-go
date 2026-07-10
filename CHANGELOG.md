@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.1.1](https://github.com/DropMorePackets/haproxy-go/compare/v0.1.0...v0.1.1) (2026-07-10)
+
+
+### Bug Fixes
+
+* **spop:** negotiate frame sizes lazily ([27ac33d](https://github.com/DropMorePackets/haproxy-go/commit/27ac33dc4cbffb46134ce84cf76962f6b2c729c3))
+
 ## [0.1.0](https://github.com/DropMorePackets/haproxy-go/compare/v0.0.8...v0.1.0) (2026-07-10)
 
 
