@@ -18,13 +18,15 @@ func TestFakeCon(t *testing.T) {
 	log.SetFlags(log.LstdFlags | log.Lshortfile)
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
+	negotiatedSize := uint32(maxFrameSize * 2)
+	largeValue := make([]byte, maxFrameSize)
 
 	pipe, pipeConn := testutil.PipeConn()
 	defer pipe.Close()
 	defer pipeConn.Close()
 	peerDone := make(chan error, 1)
 	go func() {
-		if err := newHelloFrame(pipe); err != nil {
+		if err := newHelloFrame(pipe, negotiatedSize); err != nil {
 			peerDone <- err
 			return
 		}
@@ -33,19 +35,27 @@ func TestFakeCon(t *testing.T) {
 			return
 		}
 
-		if err := newNotifyFrame(pipe); err != nil {
+		if err := newNotifyFrame(pipe, largeValue); err != nil {
 			peerDone <- err
 			return
 		}
-		if err := readExpectedFrame(pipe, frameTypeIDAck); err != nil {
+		frameLen, err := readExpectedFrameWithLimit(pipe, frameTypeIDAck, negotiatedSize)
+		if err != nil {
 			peerDone <- err
+			return
+		}
+		if frameLen <= maxFrameSize {
+			peerDone <- fmt.Errorf("expected ACK above %d bytes, got %d", maxFrameSize, frameLen)
 			return
 		}
 		peerDone <- nil
 	}()
 
-	handler := HandlerFunc(func(_ context.Context, _ *encoding.ActionWriter, m *encoding.Message) {
+	handler := HandlerFunc(func(_ context.Context, w *encoding.ActionWriter, m *encoding.Message) {
 		log.Println(m.NameBytes())
+		if err := w.SetBinary(encoding.VarScopeTransaction, "result", largeValue); err != nil {
+			t.Errorf("write action: %v", err)
+		}
 	})
 
 	pc := newProtocolClient(ctx, pipeConn, newAsyncScheduler(), handler)
@@ -76,19 +86,24 @@ func TestFakeCon(t *testing.T) {
 }
 
 func readExpectedFrame(r io.Reader, expected frameType) error {
+	_, err := readExpectedFrameWithLimit(r, expected, maxFrameSize)
+	return err
+}
+
+func readExpectedFrameWithLimit(r io.Reader, expected frameType, limit uint32) (uint32, error) {
 	f := acquireFrame()
 	defer releaseFrame(f)
 
-	if _, err := f.ReadFrom(r); err != nil {
-		return err
+	if _, err := f.readFrom(r, limit); err != nil {
+		return 0, err
 	}
 	if f.frameType != expected {
-		return fmt.Errorf("expected frame type %d, got %d", expected, f.frameType)
+		return 0, fmt.Errorf("expected frame type %d, got %d", expected, f.frameType)
 	}
-	return nil
+	return binary.BigEndian.Uint32(f.length), nil
 }
 
-func newNotifyFrame(wr io.Writer) error {
+func newNotifyFrame(wr io.Writer, value []byte) error {
 	f := acquireFrame()
 	defer releaseFrame(f)
 
@@ -100,19 +115,20 @@ func newNotifyFrame(wr io.Writer) error {
 	if err := f.encodeHeader(); err != nil {
 		return err
 	}
+	f.buf.Grow(len(value) + 32)
 
 	n, err := encoding.PutBytes(f.buf.WriteBytes(), []byte("example"))
 	if err != nil {
 		return err
 	}
 	f.buf.AdvanceW(n)
-	f.buf.WriteNBytes(1)[0] = 0
+	f.buf.WriteNBytes(1)[0] = 1
 
-	//TODO Write message
-	//w := encoding.AcquireActionWriter(f.buf.WriteBytes(), 0)
-	//defer encoding.ReleaseActionWriter(w)
-
-	//f.buf.AdvanceW(w.Off())
+	w := encoding.NewKVWriter(f.buf.WriteBytes(), 0)
+	if err := w.SetBinary("payload", value); err != nil {
+		return err
+	}
+	f.buf.AdvanceW(w.Off())
 
 	binary.BigEndian.PutUint32(f.length, uint32(f.buf.Len()))
 	wr.Write(f.length)
@@ -121,7 +137,7 @@ func newNotifyFrame(wr io.Writer) error {
 	return nil
 }
 
-func newHelloFrame(wr io.Writer) error {
+func newHelloFrame(wr io.Writer, offer uint32) error {
 	f := acquireFrame()
 	defer releaseFrame(f)
 
@@ -140,7 +156,7 @@ func newHelloFrame(wr io.Writer) error {
 	if err := w.SetString(helloKeySupportedVersions, version); err != nil {
 		return err
 	}
-	if err := w.SetUInt32(helloKeyMaxFrameSize, maxFrameSize); err != nil {
+	if err := w.SetUInt32(helloKeyMaxFrameSize, offer); err != nil {
 		return err
 	}
 	if err := w.SetString(helloKeyCapabilities, ""); err != nil {

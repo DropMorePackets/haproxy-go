@@ -16,8 +16,8 @@ func TestProtocolMaxFrameSizeOffer(t *testing.T) {
 		wantErr bool
 	}{
 		{name: "at current limit", offer: uint32(maxFrameSize)},
-		{name: "above current limit", offer: 262140, wantErr: true},
-		{name: "maximum uint32", offer: ^uint32(0), wantErr: true},
+		{name: "above initial limit", offer: 262140},
+		{name: "above HAProxy limit", offer: ^uint32(0), wantErr: true},
 	}
 
 	for _, tt := range tests {
