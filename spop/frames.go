@@ -126,6 +126,10 @@ type AckFrame struct {
 }
 
 func (a *AckFrame) WriteTo(w io.Writer) (int64, error) {
+	return a.writeTo(w, maxFrameSize)
+}
+
+func (a *AckFrame) writeTo(w io.Writer, limit uint32) (int64, error) {
 	f := acquireFrame()
 	defer releaseFrame(f)
 
@@ -146,7 +150,10 @@ func (a *AckFrame) WriteTo(w io.Writer) (int64, error) {
 		return 0, err
 	}
 
-	f.buf.AdvanceW(aw.Off())
+	frameLen := uint64(f.buf.Len()) + uint64(aw.Off())
+	if frameLen > uint64(limit) {
+		return 0, fmt.Errorf("frame length %d exceeds maximum %d", frameLen, limit)
+	}
 
-	return f.WriteTo(w)
+	return f.writeTo(w, aw.Bytes())
 }

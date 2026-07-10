@@ -50,16 +50,21 @@ type frame struct {
 }
 
 func (f *frame) ReadFrom(r io.Reader) (int64, error) {
+	return f.readFrom(r, maxFrameSize)
+}
+
+func (f *frame) readFrom(r io.Reader, limit uint32) (int64, error) {
 	if _, err := io.ReadFull(r, f.length); err != nil {
 		return 0, fmt.Errorf("reading frame length: %w", err)
 	}
 	frameLen := binary.BigEndian.Uint32(f.length)
 
-	if frameLen > maxFrameSize {
-		return int64(len(f.length)), fmt.Errorf("frame length %d exceeds maximum %d", frameLen, maxFrameSize)
+	if frameLen > limit {
+		return int64(len(f.length)), fmt.Errorf("frame length %d exceeds maximum %d", frameLen, limit)
 	}
 
 	f.buf.Reset()
+	f.buf.Grow(int(frameLen))
 	dataBuf := f.buf.WriteNBytes(int(frameLen))
 
 	// read full frame into buffer
@@ -72,14 +77,30 @@ func (f *frame) ReadFrom(r io.Reader) (int64, error) {
 }
 
 func (f *frame) WriteTo(w io.Writer) (int64, error) {
-	binary.BigEndian.PutUint32(f.length, uint32(f.buf.Len()))
+	return f.writeTo(w, nil)
+}
 
-	if n, err := w.Write(f.length); err != nil {
-		return int64(n), err
+func (f *frame) writeTo(w io.Writer, payload []byte) (int64, error) {
+	frameLen := uint64(f.buf.Len()) + uint64(len(payload))
+	if frameLen > uint64(^uint32(0)) {
+		return 0, fmt.Errorf("frame length %d exceeds protocol limit", frameLen)
+	}
+	binary.BigEndian.PutUint32(f.length, uint32(frameLen))
+
+	n, err := w.Write(f.length)
+	written := int64(n)
+	if err != nil {
+		return written, err
 	}
 
-	n, err := w.Write(f.buf.ReadBytes())
-	return int64(n + len(f.length)), err
+	n, err = w.Write(f.buf.ReadBytes())
+	written += int64(n)
+	if err != nil || len(payload) == 0 {
+		return written, err
+	}
+
+	n, err = w.Write(payload)
+	return written + int64(n), err
 }
 
 func (f *frame) encodeHeader() error {

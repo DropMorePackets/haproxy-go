@@ -32,6 +32,16 @@ func (s *SliceBuffer) WriteBytes() []byte {
 	return s.buf[s.writeOffset:]
 }
 
+func (s *SliceBuffer) Grow(n int) {
+	if n <= len(s.buf)-s.writeOffset {
+		return
+	}
+
+	buf := make([]byte, s.writeOffset+n)
+	copy(buf, s.buf[:s.writeOffset])
+	s.buf = buf
+}
+
 func (s *SliceBuffer) AdvanceR(n int) {
 	s.readOffset += n
 }

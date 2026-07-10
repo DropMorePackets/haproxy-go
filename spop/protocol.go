@@ -66,8 +66,14 @@ func (c *protocolClient) frameHandler(f *frame) error {
 
 func (c *protocolClient) Serve() error {
 	for {
+		limit := uint32(maxFrameSize)
+		if c.gotHello {
+			limit = c.maxFrameSize
+		}
+
 		f := acquireFrame()
-		if _, err := f.ReadFrom(c.rw); err != nil {
+		if _, err := f.readFrom(c.rw, limit); err != nil {
+			releaseFrame(f)
 			if c.ctx.Err() != nil {
 				return context.Cause(c.ctx)
 			}
@@ -79,6 +85,21 @@ func (c *protocolClient) Serve() error {
 			return err
 		}
 
+		if !c.gotHello {
+			if f.frameType != frameTypeIDHaproxyHello {
+				firstFrameType := f.frameType
+				releaseFrame(f)
+				return fmt.Errorf("first frame must be HAPROXY-HELLO, got type %d", firstFrameType)
+			}
+			if err := c.frameHandler(f); err != nil {
+				return err
+			}
+			if c.ctx.Err() != nil {
+				return context.Cause(c.ctx)
+			}
+			continue
+		}
+
 		c.as.schedule(f, c)
 	}
 }
@@ -86,9 +107,11 @@ func (c *protocolClient) Serve() error {
 const (
 	version = "2.0"
 
-	// maxFrameSize represents the maximum frame size allowed by this library
-	// it also represents the maximum slice size that is allowed on stack
+	// maxFrameSize is the initial buffer size and pre-negotiation frame limit.
 	maxFrameSize = 64<<10 - 1
+
+	// HAProxy advertises tune.bufsize-4, and tune.bufsize is bounded by a C int.
+	maxHAProxyFrameSize = 1<<31 - 1
 )
 
 func (c *protocolClient) onHAProxyHello(f *frame) error {
@@ -106,8 +129,11 @@ func (c *protocolClient) onHAProxyHello(f *frame) error {
 		switch {
 		case k.NameEquals(helloKeyMaxFrameSize):
 			c.maxFrameSize = uint32(k.ValueInt())
-			if c.maxFrameSize > maxFrameSize {
-				return fmt.Errorf("maxFrameSize bigger than maximum allowed size: %d < %d", maxFrameSize, c.maxFrameSize)
+			if c.maxFrameSize < 256 {
+				return fmt.Errorf("maxFrameSize smaller than minimum allowed size: %d", c.maxFrameSize)
+			}
+			if c.maxFrameSize > maxHAProxyFrameSize {
+				return fmt.Errorf("maxFrameSize exceeds HAProxy maximum: %d", c.maxFrameSize)
 			}
 
 		case k.NameEquals(helloKeyEngineID):
@@ -125,6 +151,9 @@ func (c *protocolClient) onHAProxyHello(f *frame) error {
 
 	if err := s.Error(); err != nil {
 		return err
+	}
+	if c.maxFrameSize == 0 {
+		return fmt.Errorf("HAPROXY-HELLO missing %q", helloKeyMaxFrameSize)
 	}
 
 	_, err := (&AgentHelloFrame{
@@ -164,7 +193,7 @@ func (c *protocolClient) onNotify(f *frame) error {
 		FrameID:              f.meta.FrameID,
 		StreamID:             f.meta.StreamID,
 		ActionWriterCallback: fn,
-	}).WriteTo(c.rw)
+	}).writeTo(c.rw, c.maxFrameSize)
 	return err
 }
 
