@@ -37,9 +37,9 @@ func TestFrame_ReadFrom_ExceedsMaxFrameSize(t *testing.T) {
 	})
 
 	t.Run("accepts frame length at maxFrameSize boundary", func(t *testing.T) {
-		buf := writeFrameLength(maxFrameSize)
+		buf := writeFrameLength(DefaultMaxFrameSize)
 
-		frameData := make([]byte, maxFrameSize)
+		frameData := make([]byte, DefaultMaxFrameSize)
 		frameData[0] = byte(frameTypeIDHaproxyHello)
 		binary.BigEndian.PutUint32(frameData[1:5], 0)
 		frameData[5] = 0 // streamID varint
@@ -59,9 +59,39 @@ func TestFrame_ReadFrom_ExceedsMaxFrameSize(t *testing.T) {
 	})
 
 	t.Run("rejects frame length one byte over maxFrameSize", func(t *testing.T) {
-		buf := writeFrameLength(maxFrameSize + 1)
+		buf := writeFrameLength(DefaultMaxFrameSize + 1)
 
 		f := acquireFrame()
+		defer releaseFrame(f)
+
+		_, err := f.ReadFrom(buf)
+		assertError(t, err)
+	})
+
+	t.Run("accepts configured frame length above default", func(t *testing.T) {
+		const configuredMaxFrameSize uint32 = 262140
+		buf := writeFrameLength(configuredMaxFrameSize)
+
+		frameData := make([]byte, configuredMaxFrameSize)
+		frameData[0] = byte(frameTypeIDHaproxyHello)
+		binary.BigEndian.PutUint32(frameData[1:5], 0)
+		frameData[5] = 0
+		frameData[6] = 0
+		buf.Write(frameData)
+
+		f := newFramePool(configuredMaxFrameSize).acquire()
+		defer releaseFrame(f)
+
+		if _, err := f.ReadFrom(buf); err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+	})
+
+	t.Run("rejects frame above configured maximum", func(t *testing.T) {
+		const configuredMaxFrameSize uint32 = 262140
+		buf := writeFrameLength(configuredMaxFrameSize + 1)
+
+		f := newFramePool(configuredMaxFrameSize).acquire()
 		defer releaseFrame(f)
 
 		_, err := f.ReadFrom(buf)

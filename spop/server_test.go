@@ -3,6 +3,7 @@ package spop
 import (
 	"context"
 	"encoding/binary"
+	"fmt"
 	"io"
 	"log"
 	"math/rand"
@@ -15,44 +16,76 @@ import (
 
 func TestFakeCon(t *testing.T) {
 	log.SetFlags(log.LstdFlags | log.Lshortfile)
-	ctx, cancel := context.WithCancel(context.Background())
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
 
 	pipe, pipeConn := testutil.PipeConn()
+	defer pipe.Close()
+	defer pipeConn.Close()
+	peerDone := make(chan error, 1)
 	go func() {
-		defer cancel()
-
 		if err := newHelloFrame(pipe); err != nil {
-			t.Error(err)
+			peerDone <- err
+			return
+		}
+		if err := readExpectedFrame(pipe, frameTypeIDAgentHello); err != nil {
+			peerDone <- err
 			return
 		}
 
 		if err := newNotifyFrame(pipe); err != nil {
-			t.Error(err)
+			peerDone <- err
 			return
 		}
-	}()
-
-	go func() {
-		defer cancel()
-
-		select {
-		case <-ctx.Done():
-		case <-time.After(5 * time.Second):
-			t.Error("timeout")
+		if err := readExpectedFrame(pipe, frameTypeIDAck); err != nil {
+			peerDone <- err
+			return
 		}
+		peerDone <- nil
 	}()
 
 	handler := HandlerFunc(func(_ context.Context, _ *encoding.ActionWriter, m *encoding.Message) {
 		log.Println(m.NameBytes())
-		cancel()
 	})
 
-	pc := newProtocolClient(context.Background(), pipeConn, newAsyncScheduler(), handler)
-	defer pc.Close()
-	defer pipe.Close()
-	go pc.Serve()
+	pc := newProtocolClient(ctx, pipeConn, newTestAsyncScheduler(), defaultFramePool, handler)
+	serveDone := make(chan error, 1)
+	go func() {
+		serveDone <- pc.Serve()
+	}()
 
-	<-ctx.Done()
+	select {
+	case err := <-peerDone:
+		if err != nil {
+			t.Fatal(err)
+		}
+	case <-ctx.Done():
+		t.Fatal("peer exchange timed out")
+	}
+	if err := pipe.Close(); err != nil {
+		t.Fatal(err)
+	}
+	select {
+	case err := <-serveDone:
+		if err != nil {
+			t.Fatalf("serve protocol: %v", err)
+		}
+	case <-ctx.Done():
+		t.Fatal("protocol shutdown timed out")
+	}
+}
+
+func readExpectedFrame(r io.Reader, expected frameType) error {
+	f := acquireFrame()
+	defer releaseFrame(f)
+
+	if _, err := f.ReadFrom(r); err != nil {
+		return err
+	}
+	if f.frameType != expected {
+		return fmt.Errorf("expected frame type %d, got %d", expected, f.frameType)
+	}
+	return nil
 }
 
 func newNotifyFrame(wr io.Writer) error {
@@ -104,7 +137,13 @@ func newHelloFrame(wr io.Writer) error {
 	w := encoding.AcquireKVWriter(f.buf.WriteBytes(), 0)
 	defer encoding.ReleaseKVWriter(w)
 
-	if err := w.SetUInt32(helloKeyMaxFrameSize, maxFrameSize); err != nil {
+	if err := w.SetString(helloKeySupportedVersions, version); err != nil {
+		return err
+	}
+	if err := w.SetUInt32(helloKeyMaxFrameSize, DefaultMaxFrameSize); err != nil {
+		return err
+	}
+	if err := w.SetString(helloKeyCapabilities, ""); err != nil {
 		return err
 	}
 

@@ -1,8 +1,34 @@
 package spop
 
 import (
+	"errors"
 	"fmt"
 )
+
+type protocolError struct {
+	err  error
+	code errorCode
+}
+
+func newProtocolError(code errorCode, format string, args ...any) error {
+	return &protocolError{code: code, err: fmt.Errorf(format, args...)}
+}
+
+func (e *protocolError) Error() string {
+	return e.err.Error()
+}
+
+func (e *protocolError) Unwrap() error {
+	return e.err
+}
+
+func protocolErrorCode(err error) errorCode {
+	var protocolErr *protocolError
+	if errors.As(err, &protocolErr) {
+		return protocolErr.code
+	}
+	return ErrorUnknown
+}
 
 type errorCode int
 

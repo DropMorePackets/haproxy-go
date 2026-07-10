@@ -66,6 +66,7 @@ func (bq *queue) Get() queueElem {
 	}
 
 	item := bq.elems[bq.head]
+	bq.elems[bq.head] = queueElem{}
 	bq.head = (bq.head + 1) % len(bq.elems)
 	bq.size--
 
@@ -96,6 +97,7 @@ func (a *asyncScheduler) queueWorker() {
 			return qe.pc.frameHandler(qe.f)
 		})
 		if err != nil {
+			qe.pc.terminate(err)
 			log.Println(err)
 			continue
 		}

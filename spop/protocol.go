@@ -2,20 +2,32 @@ package spop
 
 import (
 	"context"
+	"encoding/binary"
 	"errors"
 	"fmt"
 	"io"
+	"net"
+	"sync"
 	"syscall"
+	"time"
 
 	"github.com/dropmorepackets/haproxy-go/pkg/encoding"
 )
 
-func newProtocolClient(ctx context.Context, rw io.ReadWriter, as *asyncScheduler, handler Handler) *protocolClient {
+func newProtocolClient(
+	ctx context.Context,
+	rw io.ReadWriter,
+	as *asyncScheduler,
+	framePool *framePool,
+	handler Handler,
+) *protocolClient {
 	var c protocolClient
 	c.rw = rw
 	c.handler = handler
 	c.ctx, c.ctxCancel = context.WithCancelCause(ctx)
 	c.as = as
+	c.framePool = framePool
+	c.maxFrameSize = framePool.maxFrameSize
 	return &c
 }
 
@@ -26,8 +38,11 @@ type protocolClient struct {
 
 	ctxCancel context.CancelCauseFunc
 	as        *asyncScheduler
+	framePool *framePool
+	engineID  string
 
-	engineID     string
+	closeOnce sync.Once
+
 	maxFrameSize uint32
 
 	gotHello bool
@@ -38,15 +53,34 @@ func (c *protocolClient) Close() error {
 		return c.ctx.Err()
 	}
 
-	// We ignore any error since the disconnect frame is delivered on
-	// best effort anyway.
-	_, _ = (&AgentDisconnectFrame{
-		ErrCode: ErrorUnknown,
-	}).WriteTo(c.rw)
-
-	c.ctxCancel(fmt.Errorf("closing client"))
+	c.terminate(fmt.Errorf("closing client"))
 
 	return nil
+}
+
+func (c *protocolClient) terminate(err error) {
+	c.terminateWithCode(err, protocolErrorCode(err))
+}
+
+func (c *protocolClient) terminateWithCode(err error, code errorCode) {
+	c.closeOnce.Do(func() {
+		c.ctxCancel(err)
+
+		if conn, ok := c.rw.(net.Conn); ok {
+			if deadlineErr := conn.SetWriteDeadline(time.Now().Add(disconnectWriteTimeout)); deadlineErr == nil {
+				_, _ = (&AgentDisconnectFrame{
+					ErrCode: code,
+				}).writeTo(conn, c.framePool, c.maxFrameSize)
+			}
+			_ = conn.Close()
+			return
+		}
+
+		// A generic writer cannot provide a bounded best-effort write.
+		if closer, ok := c.rw.(io.Closer); ok {
+			_ = closer.Close()
+		}
+	})
 }
 
 func (c *protocolClient) frameHandler(f *frame) error {
@@ -65,17 +99,36 @@ func (c *protocolClient) frameHandler(f *frame) error {
 }
 
 func (c *protocolClient) Serve() error {
+	f, err := c.readFrame()
+	if err != nil {
+		err = c.readError(err)
+		if err != nil {
+			c.terminate(err)
+		}
+		return err
+	}
+	if f.frameType != frameTypeIDHaproxyHello {
+		firstFrameType := f.frameType
+		releaseFrame(f)
+		err := newProtocolError(ErrorInvalid, "first frame must be HAPROXY-HELLO, got type %d", firstFrameType)
+		c.terminate(err)
+		return err
+	}
+	if err := c.frameHandler(f); err != nil {
+		c.terminate(err)
+		return err
+	}
+	if c.ctx.Err() != nil {
+		return context.Cause(c.ctx)
+	}
+
 	for {
-		f := acquireFrame()
-		if _, err := f.ReadFrom(c.rw); err != nil {
-			if c.ctx.Err() != nil {
-				return context.Cause(c.ctx)
+		f, err := c.readFrame()
+		if err != nil {
+			err = c.readError(err)
+			if err != nil {
+				c.terminate(err)
 			}
-
-			if errors.Is(err, io.EOF) || errors.Is(err, syscall.ECONNRESET) {
-				return nil
-			}
-
 			return err
 		}
 
@@ -83,12 +136,34 @@ func (c *protocolClient) Serve() error {
 	}
 }
 
+func (c *protocolClient) readFrame() (*frame, error) {
+	f := c.framePool.acquire()
+	if _, err := f.readFrom(c.rw, c.maxFrameSize); err != nil {
+		releaseFrame(f)
+		return nil, err
+	}
+	return f, nil
+}
+
+func (c *protocolClient) readError(err error) error {
+	if c.ctx.Err() != nil {
+		return context.Cause(c.ctx)
+	}
+	if errors.Is(err, io.EOF) || errors.Is(err, syscall.ECONNRESET) {
+		return nil
+	}
+	return err
+}
+
 const (
 	version = "2.0"
 
-	// maxFrameSize represents the maximum frame size allowed by this library
-	// it also represents the maximum slice size that is allowed on stack
-	maxFrameSize = 64<<10 - 1
+	minFrameSize           = 256
+	disconnectWriteTimeout = 100 * time.Millisecond
+
+	// DefaultMaxFrameSize is the maximum SPOP frame size used by an Agent when
+	// MaxFrameSize is not configured.
+	DefaultMaxFrameSize uint32 = 64<<10 - 1
 )
 
 func (c *protocolClient) onHAProxyHello(f *frame) error {
@@ -102,12 +177,33 @@ func (c *protocolClient) onHAProxyHello(f *frame) error {
 
 	k := encoding.AcquireKVEntry()
 	defer encoding.ReleaseKVEntry(k)
+	gotMaxFrameSize := false
 	for s.Next(k) {
 		switch {
 		case k.NameEquals(helloKeyMaxFrameSize):
-			c.maxFrameSize = uint32(k.ValueInt())
-			if c.maxFrameSize > maxFrameSize {
-				return fmt.Errorf("maxFrameSize bigger than maximum allowed size: %d < %d", maxFrameSize, c.maxFrameSize)
+			if k.Type() != encoding.DataTypeUInt32 {
+				return newProtocolError(ErrorBadFrameSize, "peer max frame size must be uint32")
+			}
+			gotMaxFrameSize = true
+			peerMaxFrameSize := uint32(k.ValueInt())
+			if peerMaxFrameSize < minFrameSize {
+				return newProtocolError(
+					ErrorBadFrameSize,
+					"peer max frame size must be at least %d: %d",
+					minFrameSize,
+					peerMaxFrameSize,
+				)
+			}
+			if binary.BigEndian.Uint32(f.length) > peerMaxFrameSize {
+				return newProtocolError(
+					ErrorBadFrameSize,
+					"HAPROXY-HELLO frame length %d exceeds peer maximum %d",
+					binary.BigEndian.Uint32(f.length),
+					peerMaxFrameSize,
+				)
+			}
+			if peerMaxFrameSize < c.maxFrameSize {
+				c.maxFrameSize = peerMaxFrameSize
 			}
 
 		case k.NameEquals(helloKeyEngineID):
@@ -126,12 +222,15 @@ func (c *protocolClient) onHAProxyHello(f *frame) error {
 	if err := s.Error(); err != nil {
 		return err
 	}
+	if !gotMaxFrameSize {
+		return newProtocolError(ErrorNoFrameSize, "HAPROXY-HELLO missing %q", helloKeyMaxFrameSize)
+	}
 
 	_, err := (&AgentHelloFrame{
 		Version:      version,
 		MaxFrameSize: c.maxFrameSize,
 		Capabilities: []string{},
-	}).WriteTo(c.rw)
+	}).writeTo(c.rw, c.framePool, c.maxFrameSize)
 	return err
 }
 
@@ -164,7 +263,7 @@ func (c *protocolClient) onNotify(f *frame) error {
 		FrameID:              f.meta.FrameID,
 		StreamID:             f.meta.StreamID,
 		ActionWriterCallback: fn,
-	}).WriteTo(c.rw)
+	}).writeTo(c.rw, c.framePool, c.maxFrameSize)
 	return err
 }
 
@@ -200,10 +299,14 @@ func (c *protocolClient) onHAProxyDisconnect(f *frame) error {
 	// HAProxy returns an IO error when it doesn't require a connection
 	// anymore.
 	case ErrorIO, ErrorTimeout, ErrorNone:
+		err = context.Canceled
 	default:
 		err = fmt.Errorf("disconnect frame with code %d: %s", code, code)
 	}
 
-	c.ctxCancel(err)
+	c.terminateWithCode(err, code)
+	if code == ErrorIO || code == ErrorTimeout || code == ErrorNone {
+		return nil
+	}
 	return err
 }

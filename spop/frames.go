@@ -43,7 +43,11 @@ type AgentDisconnectFrame struct {
 }
 
 func (a *AgentDisconnectFrame) WriteTo(w io.Writer) (int64, error) {
-	f := acquireFrame()
+	return a.writeTo(w, defaultFramePool, DefaultMaxFrameSize)
+}
+
+func (a *AgentDisconnectFrame) writeTo(w io.Writer, pool *framePool, maxFrameSize uint32) (int64, error) {
+	f := pool.acquire()
 	defer releaseFrame(f)
 
 	f.frameType = frameTypeIDAgentDisconnect
@@ -66,7 +70,7 @@ func (a *AgentDisconnectFrame) WriteTo(w io.Writer) (int64, error) {
 
 	f.buf.AdvanceW(kvw.Off())
 
-	return f.WriteTo(w)
+	return f.writeTo(w, maxFrameSize)
 }
 
 const (
@@ -89,7 +93,11 @@ type AgentHelloFrame struct {
 }
 
 func (a *AgentHelloFrame) WriteTo(w io.Writer) (int64, error) {
-	f := acquireFrame()
+	return a.writeTo(w, defaultFramePool, DefaultMaxFrameSize)
+}
+
+func (a *AgentHelloFrame) writeTo(w io.Writer, pool *framePool, maxFrameSize uint32) (int64, error) {
+	f := pool.acquire()
 	defer releaseFrame(f)
 
 	f.frameType = frameTypeIDAgentHello
@@ -116,7 +124,7 @@ func (a *AgentHelloFrame) WriteTo(w io.Writer) (int64, error) {
 	}
 	f.buf.AdvanceW(kvw.Off())
 
-	return f.WriteTo(w)
+	return f.writeTo(w, maxFrameSize)
 }
 
 type AckFrame struct {
@@ -126,7 +134,11 @@ type AckFrame struct {
 }
 
 func (a *AckFrame) WriteTo(w io.Writer) (int64, error) {
-	f := acquireFrame()
+	return a.writeTo(w, defaultFramePool, DefaultMaxFrameSize)
+}
+
+func (a *AckFrame) writeTo(w io.Writer, pool *framePool, maxFrameSize uint32) (int64, error) {
+	f := pool.acquire()
 	defer releaseFrame(f)
 
 	f.frameType = frameTypeIDAck
@@ -148,5 +160,5 @@ func (a *AckFrame) WriteTo(w io.Writer) (int64, error) {
 
 	f.buf.AdvanceW(aw.Off())
 
-	return f.WriteTo(w)
+	return f.writeTo(w, maxFrameSize)
 }

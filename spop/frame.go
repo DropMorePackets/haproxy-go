@@ -13,17 +13,31 @@ import (
 
 const uint32Len = 4
 
-var framePool = sync.Pool{
-	New: func() any {
+type framePool struct {
+	pool         sync.Pool
+	maxFrameSize uint32
+}
+
+func newFramePool(maxFrameSize uint32) *framePool {
+	p := &framePool{maxFrameSize: maxFrameSize}
+	p.pool.New = func() any {
 		return &frame{
+			buf:    buffer.NewSliceBuffer(int(maxFrameSize)),
 			length: make([]byte, uint32Len),
-			buf:    buffer.NewSliceBuffer(maxFrameSize),
+			pool:   p,
 		}
-	},
+	}
+	return p
+}
+
+var defaultFramePool = newFramePool(DefaultMaxFrameSize)
+
+func (p *framePool) acquire() *frame {
+	return p.pool.Get().(*frame)
 }
 
 func acquireFrame() *frame {
-	return framePool.Get().(*frame)
+	return defaultFramePool.acquire()
 }
 
 func releaseFrame(f *frame) {
@@ -31,7 +45,7 @@ func releaseFrame(f *frame) {
 	f.frameType = 0
 	f.meta = frameMetadata{}
 
-	framePool.Put(f)
+	f.pool.pool.Put(f)
 }
 
 type frameMetadata struct {
@@ -41,7 +55,8 @@ type frameMetadata struct {
 }
 
 type frame struct {
-	buf *buffer.SliceBuffer
+	buf  *buffer.SliceBuffer
+	pool *framePool
 
 	length []byte
 	meta   frameMetadata
@@ -50,13 +65,25 @@ type frame struct {
 }
 
 func (f *frame) ReadFrom(r io.Reader) (int64, error) {
+	return f.readFrom(r, f.pool.maxFrameSize)
+}
+
+func (f *frame) readFrom(r io.Reader, maxFrameSize uint32) (int64, error) {
 	if _, err := io.ReadFull(r, f.length); err != nil {
 		return 0, fmt.Errorf("reading frame length: %w", err)
 	}
 	frameLen := binary.BigEndian.Uint32(f.length)
 
+	if maxFrameSize > f.pool.maxFrameSize {
+		maxFrameSize = f.pool.maxFrameSize
+	}
 	if frameLen > maxFrameSize {
-		return int64(len(f.length)), fmt.Errorf("frame length %d exceeds maximum %d", frameLen, maxFrameSize)
+		return int64(len(f.length)), newProtocolError(
+			ErrorTooBig,
+			"frame length %d exceeds maximum %d",
+			frameLen,
+			maxFrameSize,
+		)
 	}
 
 	f.buf.Reset()
@@ -72,7 +99,24 @@ func (f *frame) ReadFrom(r io.Reader) (int64, error) {
 }
 
 func (f *frame) WriteTo(w io.Writer) (int64, error) {
-	binary.BigEndian.PutUint32(f.length, uint32(f.buf.Len()))
+	return f.writeTo(w, f.pool.maxFrameSize)
+}
+
+func (f *frame) writeTo(w io.Writer, maxFrameSize uint32) (int64, error) {
+	if maxFrameSize > f.pool.maxFrameSize {
+		maxFrameSize = f.pool.maxFrameSize
+	}
+	frameLen := uint32(f.buf.Len())
+	if frameLen > maxFrameSize {
+		return 0, newProtocolError(
+			ErrorTooBig,
+			"frame length %d exceeds maximum %d",
+			frameLen,
+			maxFrameSize,
+		)
+	}
+
+	binary.BigEndian.PutUint32(f.length, frameLen)
 
 	if n, err := w.Write(f.length); err != nil {
 		return int64(n), err
