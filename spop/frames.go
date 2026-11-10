@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"io"
 	"strings"
+	"sync"
 
 	"github.com/dropmorepackets/haproxy-go/pkg/encoding"
 )
@@ -126,10 +127,12 @@ type AckFrame struct {
 }
 
 func (a *AckFrame) WriteTo(w io.Writer) (int64, error) {
-	return a.writeTo(w, maxFrameSize)
+	return a.writeTo(w, maxFrameSize, nil)
 }
 
-func (a *AckFrame) writeTo(w io.Writer, limit uint32) (int64, error) {
+// writeTo encodes the ACK and writes it to w. If writeMu is not nil, it is
+// held while the frame is written, but not while the callback runs.
+func (a *AckFrame) writeTo(w io.Writer, limit uint32, writeMu *sync.Mutex) (int64, error) {
 	f := acquireFrame()
 	defer releaseFrame(f)
 
@@ -155,5 +158,9 @@ func (a *AckFrame) writeTo(w io.Writer, limit uint32) (int64, error) {
 		return 0, fmt.Errorf("frame length %d exceeds maximum %d", frameLen, limit)
 	}
 
+	if writeMu != nil {
+		writeMu.Lock()
+		defer writeMu.Unlock()
+	}
 	return f.writeTo(w, aw.Bytes())
 }
