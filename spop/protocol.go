@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"sync"
 	"syscall"
 
 	"github.com/dropmorepackets/haproxy-go/pkg/encoding"
@@ -27,7 +28,13 @@ type protocolClient struct {
 	ctxCancel context.CancelCauseFunc
 	as        *asyncScheduler
 
-	engineID     string
+	engineID string
+
+	// writeMu serializes frame writes to rw. A frame takes several Write
+	// calls, and with pipelining workers write ACKs for the same connection
+	// concurrently.
+	writeMu sync.Mutex
+
 	maxFrameSize uint32
 
 	gotHello bool
@@ -40,9 +47,11 @@ func (c *protocolClient) Close() error {
 
 	// We ignore any error since the disconnect frame is delivered on
 	// best effort anyway.
+	c.writeMu.Lock()
 	_, _ = (&AgentDisconnectFrame{
 		ErrCode: ErrorUnknown,
 	}).WriteTo(c.rw)
+	c.writeMu.Unlock()
 
 	c.ctxCancel(fmt.Errorf("closing client"))
 
@@ -156,6 +165,8 @@ func (c *protocolClient) onHAProxyHello(f *frame) error {
 		return fmt.Errorf("HAPROXY-HELLO missing %q", helloKeyMaxFrameSize)
 	}
 
+	c.writeMu.Lock()
+	defer c.writeMu.Unlock()
 	_, err := (&AgentHelloFrame{
 		Version:      version,
 		MaxFrameSize: c.maxFrameSize,
@@ -193,7 +204,7 @@ func (c *protocolClient) onNotify(f *frame) error {
 		FrameID:              f.meta.FrameID,
 		StreamID:             f.meta.StreamID,
 		ActionWriterCallback: fn,
-	}).writeTo(c.rw, c.maxFrameSize)
+	}).writeTo(c.rw, c.maxFrameSize, &c.writeMu)
 	return err
 }
 
