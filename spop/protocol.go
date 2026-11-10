@@ -170,7 +170,7 @@ func (c *protocolClient) onHAProxyHello(f *frame) error {
 	_, err := (&AgentHelloFrame{
 		Version:      version,
 		MaxFrameSize: c.maxFrameSize,
-		Capabilities: []string{},
+		Capabilities: []string{capabilityNamePipelining},
 	}).WriteTo(c.rw)
 	return err
 }

@@ -116,6 +116,7 @@ func TestE2E(t *testing.T) {
 				}
 				wg.Wait()
 			},
+			backendCfg: "http-request return status 500 if { var(txn.e2e.error) -m found }",
 		},
 	}
 
