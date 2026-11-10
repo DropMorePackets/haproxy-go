@@ -78,8 +78,6 @@ const (
 	helloKeyHealthcheck       = "healthcheck"
 	helloKeyEngineID          = "engine-id"
 
-	//lint:ignore U1000 These will probably be implemented again
-	capabilityNameAsync      = "async"
 	capabilityNamePipelining = "pipelining"
 )
 

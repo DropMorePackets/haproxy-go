@@ -52,7 +52,31 @@ func TestProtocolMaxFrameSizeOffer(t *testing.T) {
 	}
 }
 
+func TestProtocolAdvertisesPipelining(t *testing.T) {
+	var rw bytes.Buffer
+	client := newProtocolClient(
+		context.Background(),
+		&rw,
+		nil,
+		HandlerFunc(func(context.Context, *encoding.ActionWriter, *encoding.Message) {}),
+	)
+	frame := testHelloFrame(t, uint32(maxFrameSize))
+	defer releaseFrame(frame)
+
+	if err := client.onHAProxyHello(frame); err != nil {
+		t.Fatalf("handle HAPROXY-HELLO: %v", err)
+	}
+	if got := agentHelloValue(t, &rw, helloKeyCapabilities); got != capabilityNamePipelining {
+		t.Fatalf("expected capabilities %q, got %q", capabilityNamePipelining, got)
+	}
+}
+
 func agentHelloMaxFrameSize(t *testing.T, rw *bytes.Buffer) uint32 {
+	t.Helper()
+	return agentHelloValue(t, rw, helloKeyMaxFrameSize).(uint32)
+}
+
+func agentHelloValue(t *testing.T, rw *bytes.Buffer, key string) any {
 	t.Helper()
 	f := acquireFrame()
 	defer releaseFrame(f)
@@ -68,15 +92,15 @@ func agentHelloMaxFrameSize(t *testing.T, rw *bytes.Buffer) uint32 {
 	k := encoding.AcquireKVEntry()
 	defer encoding.ReleaseKVEntry(k)
 	for s.Next(k) {
-		if k.NameEquals(helloKeyMaxFrameSize) {
-			return uint32(k.ValueInt())
+		if k.NameEquals(key) {
+			return k.Value()
 		}
 	}
 	if err := s.Error(); err != nil {
 		t.Fatalf("scan AGENT-HELLO: %v", err)
 	}
-	t.Fatal("AGENT-HELLO missing max-frame-size")
-	return 0
+	t.Fatalf("AGENT-HELLO missing %s", key)
+	return nil
 }
 
 func testHelloFrame(t *testing.T, offer uint32) *frame {
