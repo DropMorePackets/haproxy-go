@@ -1,5 +1,17 @@
 # Changelog
 
+## [0.2.0](https://github.com/DropMorePackets/haproxy-go/compare/v0.1.1...v0.2.0) (2026-11-23)
+
+
+### Features
+
+* **spop:** re-enable pipelining ([6637050](https://github.com/DropMorePackets/haproxy-go/commit/663705079537d3f6d85131031d2683d8f581fee7))
+
+
+### Bug Fixes
+
+* **spop:** serialize frame writes on a connection ([a02732d](https://github.com/DropMorePackets/haproxy-go/commit/a02732dab6266adffd153d856b12c6aee89541f3))
+
 ## [0.1.1](https://github.com/DropMorePackets/haproxy-go/compare/v0.1.0...v0.1.1) (2026-07-10)
 
 
